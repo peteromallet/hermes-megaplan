@@ -358,28 +358,6 @@ description: >
 allowed-tools: Bash(desloppify *)
 ---
 
----
-name: desloppify
-description: >
-  Codebase health scanner and technical debt tracker. Use when the user asks
-  about code quality, technical debt, dead code, large files, god classes,
-  duplicate functions, code smells, naming issues, import cycles, or coupling
-  problems. Also use when asked for a health score, what to fix next, or to
-  create a cleanup plan. Supports 29 languages.
-allowed-tools: Bash(desloppify *)
----
-
----
-name: desloppify
-description: >
-  Codebase health scanner and technical debt tracker. Use when the user asks
-  about code quality, technical debt, dead code, large files, god classes,
-  duplicate functions, code smells, naming issues, import cycles, or coupling
-  problems. Also use when asked for a health score, what to fix next, or to
-  create a cleanup plan. Supports 29 languages.
-allowed-tools: Bash(desloppify *)
----
-
 <!-- desloppify-begin -->
 <!-- desloppify-skill-version: 5 -->
 

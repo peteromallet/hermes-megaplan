@@ -446,16 +446,16 @@ def _run_cleanup():
     try:
         _cleanup_all_terminals()
     except Exception:
-        return None
+        pass
     try:
         _cleanup_all_browsers()
     except Exception:
-        return None
+        pass
     try:
         from tools.mcp_tool import shutdown_mcp_servers
         shutdown_mcp_servers()
     except Exception:
-        return None
+        pass
 
 
 # =============================================================================

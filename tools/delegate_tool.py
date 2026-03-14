@@ -231,11 +231,7 @@ def _build_child_agent(
     child._delegate_depth = getattr(parent_agent, '_delegate_depth', 0) + 1
 
     if hasattr(parent_agent, '_active_children'):
-        lock = getattr(parent_agent, '_active_children_lock', None)
-        if lock:
-            with lock:
-                parent_agent._active_children.append(child)
-        else:
+        with parent_agent._active_children_lock:
             parent_agent._active_children.append(child)
 
     return child
@@ -368,14 +364,10 @@ def _run_single_child(
     finally:
         # Unregister child from interrupt propagation
         if hasattr(parent_agent, '_active_children'):
-            lock = getattr(parent_agent, '_active_children_lock', None)
             try:
-                if lock:
-                    with lock:
-                        parent_agent._active_children.remove(child)
-                else:
+                with parent_agent._active_children_lock:
                     parent_agent._active_children.remove(child)
-            except (ValueError, UnboundLocalError) as e:
+            except (ValueError, AttributeError) as e:
                 logger.debug("Could not remove child from active_children: %s", e)
 
 
