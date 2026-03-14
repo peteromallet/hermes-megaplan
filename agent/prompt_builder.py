@@ -88,6 +88,14 @@ SKILLS_GUIDANCE = (
     "skill with skill_manage so you can reuse it next time."
 )
 
+SWITCH_MODEL_GUIDANCE = (
+    "You can switch your LLM model mid-conversation using switch_model. "
+    "Use action='list' to see available providers and models, then action='switch' "
+    "to change. Consider switching to a faster/cheaper model for simple tasks, "
+    "or a more capable model for complex reasoning. Your original model is "
+    "{original_model}."
+)
+
 PLATFORM_HINTS = {
     "whatsapp": (
         "You are on a text messaging communication platform, WhatsApp. "

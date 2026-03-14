@@ -50,6 +50,9 @@ _HERMES_CORE_TOOLS = [
     "text_to_speech",
     # Planning & memory
     "todo", "memory",
+    # Model management
+    "switch_model",
+    "smart_model",
     # Session history search
     "session_search",
     # Clarifying questions
@@ -98,6 +101,18 @@ TOOLSETS = {
     "terminal": {
         "description": "Terminal/command execution and process management tools",
         "tools": ["terminal", "process"],
+        "includes": []
+    },
+
+    "switch_model": {
+        "description": "Switch the live agent to a specific provider/model at runtime",
+        "tools": ["switch_model"],
+        "includes": []
+    },
+
+    "smart_model": {
+        "description": "Choose a model preset and switch the live agent at runtime",
+        "tools": ["smart_model"],
         "includes": []
     },
     
@@ -506,7 +521,7 @@ if __name__ == "__main__":
     print("\nMultiple Toolset Resolution:")
     print("-" * 40)
     combined = resolve_multiple_toolsets(["web", "vision", "terminal"])
-    print(f"  Combining ['web', 'vision', 'terminal']:")
+    print("  Combining ['web', 'vision', 'terminal']:")
     print(f"    Result: {', '.join(sorted(combined))}")
     
     print("\nCustom Toolset Creation:")
@@ -518,6 +533,6 @@ if __name__ == "__main__":
         includes=["terminal", "vision"]
     )
     custom_info = get_toolset_info("my_custom")
-    print(f"  Created 'my_custom' toolset:")
+    print("  Created 'my_custom' toolset:")
     print(f"    Description: {custom_info['description']}")
     print(f"    Resolved tools: {', '.join(custom_info['resolved_tools'])}")
