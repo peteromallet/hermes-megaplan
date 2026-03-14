@@ -8,7 +8,6 @@ import os
 import sys
 import subprocess
 import shutil
-from pathlib import Path
 
 from hermes_cli.config import get_project_root, get_hermes_home, get_env_path
 
@@ -679,7 +678,7 @@ def run_doctor(args):
         hcfg = HonchoClientConfig.from_global_config()
 
         if not GLOBAL_CONFIG_PATH.exists():
-            check_warn("Honcho config not found", f"run: hermes honcho setup")
+            check_warn("Honcho config not found", "run: hermes honcho setup")
         elif not hcfg.enabled:
             check_info("Honcho disabled (set enabled: true in ~/.honcho/config.json to activate)")
         elif not hcfg.api_key:

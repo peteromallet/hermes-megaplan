@@ -18,11 +18,9 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shutil
 import stat
 import base64
 import hashlib
-import subprocess
 import threading
 import time
 import uuid
@@ -1759,7 +1757,7 @@ def _login_openai_codex(args, pconfig: ProviderConfig) -> None:
     config_path = _update_config_for_provider("openai-codex", creds.get("base_url", DEFAULT_CODEX_BASE_URL))
     print()
     print("Login successful!")
-    print(f"  Auth state: ~/.hermes/auth.json")
+    print("  Auth state: ~/.hermes/auth.json")
     print(f"  Config updated: {config_path} (model.provider=openai-codex)")
 
 
@@ -1803,9 +1801,9 @@ def _codex_device_code_login() -> Dict[str, Any]:
 
     # Step 2: Show user the code
     print("To continue, follow these steps:\n")
-    print(f"  1. Open this URL in your browser:")
+    print("  1. Open this URL in your browser:")
     print(f"     \033[94m{issuer}/codex/device\033[0m\n")
-    print(f"  2. Enter this code:")
+    print("  2. Enter this code:")
     print(f"     \033[94m{user_code}\033[0m\n")
     print("Waiting for sign-in... (press Ctrl+C to cancel)")
 

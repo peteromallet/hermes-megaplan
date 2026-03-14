@@ -7,11 +7,9 @@ Provides options for:
 """
 
 import os
-import sys
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 from hermes_cli.colors import Colors, color
 
@@ -272,7 +270,7 @@ def run_uninstall(args):
         log_info("No wrapper script found")
     
     # 4. Remove installation directory (code)
-    log_info(f"Removing installation directory...")
+    log_info("Removing installation directory...")
     
     # Check if we're running from within the install dir
     # We need to be careful here

@@ -392,7 +392,7 @@ def _session_browse_picker(sessions: list) -> Optional[str]:
                 return sessions[idx]["id"]
             print(f"  Invalid selection. Enter 1-{len(sessions)} or q to cancel.")
         except ValueError:
-            print(f"  Invalid input. Enter a number or q to cancel.")
+            print("  Invalid input. Enter a number or q to cancel.")
         except (KeyboardInterrupt, EOFError):
             print()
             return None
@@ -529,7 +529,6 @@ def cmd_gateway(args):
 
 def cmd_whatsapp(args):
     """Set up WhatsApp: choose mode, configure, install bridge, pair via QR."""
-    import os
     import subprocess
     from pathlib import Path
     from hermes_cli.config import get_env_value, save_env_value
@@ -723,12 +722,9 @@ def cmd_setup(args):
 def cmd_model(args):
     """Select default model — starts with provider selection, then model picker."""
     from hermes_cli.auth import (
-        resolve_provider, get_provider_auth_state, PROVIDER_REGISTRY,
-        _prompt_model_selection, _save_model_choice, _update_config_for_provider,
-        resolve_nous_runtime_credentials, fetch_nous_models, AuthError, format_auth_error,
-        _login_nous,
+        resolve_provider, AuthError, format_auth_error,
     )
-    from hermes_cli.config import load_config, save_config, get_env_value, save_env_value
+    from hermes_cli.config import load_config, get_env_value
 
     config = load_config()
     current_model = config.get("model")
@@ -1495,7 +1491,7 @@ def _model_flow_api_key_provider(config, provider_id, current_model=""):
     """Generic flow for API-key providers (z.ai, MiniMax)."""
     from hermes_cli.auth import (
         PROVIDER_REGISTRY, _prompt_model_selection, _save_model_choice,
-        _update_config_for_provider, deactivate_provider,
+        deactivate_provider,
     )
     from hermes_cli.config import get_env_value, save_env_value, load_config, save_config
 
@@ -1554,8 +1550,8 @@ def _model_flow_api_key_provider(config, provider_id, current_model=""):
     else:
         model_list = _PROVIDER_MODELS.get(provider_id, [])
         if model_list:
-            print(f"  ⚠ Could not auto-detect models from API — showing defaults.")
-            print(f"    Use \"Enter custom model name\" if you don't see your model.")
+            print("  ⚠ Could not auto-detect models from API — showing defaults.")
+            print("    Use \"Enter custom model name\" if you don't see your model.")
         # else: no defaults either, will fall through to raw input
 
     if model_list:
@@ -1655,7 +1651,7 @@ def _model_flow_anthropic(config, current_model=""):
     import os
     from hermes_cli.auth import (
         PROVIDER_REGISTRY, _prompt_model_selection, _save_model_choice,
-        _update_config_for_provider, deactivate_provider,
+        deactivate_provider,
     )
     from hermes_cli.config import (
         get_env_value, save_env_value, load_config, save_config,

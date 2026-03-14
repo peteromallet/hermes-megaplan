@@ -421,9 +421,8 @@ from hermes_cli.banner import (
     get_available_skills as _get_available_skills,
     build_welcome_banner,
 )
-from hermes_cli.commands import COMMANDS, SlashCommandCompleter
-from hermes_cli import callbacks as _callbacks
-from toolsets import get_all_toolsets, get_toolset_info, resolve_toolset, validate_toolset
+from hermes_cli.commands import SlashCommandCompleter
+from toolsets import get_all_toolsets, get_toolset_info, validate_toolset
 
 # Cron job system for scheduled tasks (CRUD only — execution is handled by the gateway)
 from cron import create_job, list_jobs, remove_job, get_job
@@ -447,16 +446,16 @@ def _run_cleanup():
     try:
         _cleanup_all_terminals()
     except Exception:
-        pass
+        return None
     try:
         _cleanup_all_browsers()
     except Exception:
-        pass
+        return None
     try:
         from tools.mcp_tool import shutdown_mcp_servers
         shutdown_mcp_servers()
     except Exception:
-        pass
+        return None
 
 
 # =============================================================================
@@ -470,15 +469,16 @@ _active_worktree: Optional[Dict[str, str]] = None
 def _git_repo_root() -> Optional[str]:
     """Return the git repo root for CWD, or None if not in a repo."""
     import subprocess
+    import shutil
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+            [shutil.which("git") or "git", "rev-parse", "--show-toplevel"],
             capture_output=True, text=True, timeout=5,
         )
         if result.returncode == 0:
             return result.stdout.strip()
     except Exception:
-        pass
+        return None
     return None
 
 
@@ -489,6 +489,7 @@ def _setup_worktree(repo_root: str = None) -> Optional[Dict[str, str]]:
     The dict contains: path, branch, repo_root.
     """
     import subprocess
+    import shutil
 
     repo_root = repo_root or _git_repo_root()
     if not repo_root:
@@ -521,7 +522,7 @@ def _setup_worktree(repo_root: str = None) -> Optional[Dict[str, str]]:
     # Create the worktree
     try:
         result = subprocess.run(
-            ["git", "worktree", "add", str(wt_path), "-b", branch_name, "HEAD"],
+            [shutil.which("git") or "git", "worktree", "add", str(wt_path), "-b", branch_name, "HEAD"],
             capture_output=True, text=True, timeout=30, cwd=repo_root,
         )
         if result.returncode != 0:
@@ -575,6 +576,7 @@ def _cleanup_worktree(info: Dict[str, str] = None) -> None:
         return
 
     import subprocess
+    import shutil
 
     wt_path = info["path"]
     branch = info["branch"]
@@ -586,7 +588,7 @@ def _cleanup_worktree(info: Dict[str, str] = None) -> None:
     # Check for uncommitted changes
     try:
         status = subprocess.run(
-            ["git", "status", "--porcelain"],
+            [shutil.which("git") or "git", "status", "--porcelain"],
             capture_output=True, text=True, timeout=10, cwd=wt_path,
         )
         has_changes = bool(status.stdout.strip())
@@ -602,7 +604,7 @@ def _cleanup_worktree(info: Dict[str, str] = None) -> None:
     # Remove worktree
     try:
         subprocess.run(
-            ["git", "worktree", "remove", wt_path, "--force"],
+            [shutil.which("git") or "git", "worktree", "remove", wt_path, "--force"],
             capture_output=True, text=True, timeout=15, cwd=repo_root,
         )
     except Exception as e:
@@ -611,7 +613,7 @@ def _cleanup_worktree(info: Dict[str, str] = None) -> None:
     # Delete the branch (only if it was never pushed / has no upstream)
     try:
         subprocess.run(
-            ["git", "branch", "-D", branch],
+            [shutil.which("git") or "git", "branch", "-D", branch],
             capture_output=True, text=True, timeout=10, cwd=repo_root,
         )
     except Exception as e:
@@ -627,6 +629,7 @@ def _prune_stale_worktrees(repo_root: str, max_age_hours: int = 24) -> None:
     Runs silently on startup to clean up after crashed/killed sessions.
     """
     import subprocess
+    import shutil
     import time
 
     worktrees_dir = Path(repo_root) / ".worktrees"
@@ -651,7 +654,7 @@ def _prune_stale_worktrees(repo_root: str, max_age_hours: int = 24) -> None:
         # Check for uncommitted changes
         try:
             status = subprocess.run(
-                ["git", "status", "--porcelain"],
+            [shutil.which("git") or "git", "status", "--porcelain"],
                 capture_output=True, text=True, timeout=5, cwd=str(entry),
             )
             if status.stdout.strip():
@@ -662,18 +665,18 @@ def _prune_stale_worktrees(repo_root: str, max_age_hours: int = 24) -> None:
         # Safe to remove
         try:
             branch_result = subprocess.run(
-                ["git", "branch", "--show-current"],
+            [shutil.which("git") or "git", "branch", "--show-current"],
                 capture_output=True, text=True, timeout=5, cwd=str(entry),
             )
             branch = branch_result.stdout.strip()
 
             subprocess.run(
-                ["git", "worktree", "remove", str(entry), "--force"],
+            [shutil.which("git") or "git", "worktree", "remove", str(entry), "--force"],
                 capture_output=True, text=True, timeout=15, cwd=repo_root,
             )
             if branch:
                 subprocess.run(
-                    ["git", "branch", "-D", branch],
+            [shutil.which("git") or "git", "branch", "-D", branch],
                     capture_output=True, text=True, timeout=10, cwd=repo_root,
                 )
             logger.debug("Pruned stale worktree: %s", entry.name)
@@ -796,7 +799,7 @@ def build_welcome_banner(console: Console, model: str, cwd: str, tools: List[dic
         session_id: Unique session identifier for logging
         context_length: Model's context window size in tokens
     """
-    from model_tools import check_tool_availability, TOOLSET_REQUIREMENTS
+    from model_tools import check_tool_availability
     
     tools = tools or []
     enabled_toolsets = enabled_toolsets or []
@@ -972,7 +975,7 @@ def build_welcome_banner(console: Console, model: str, cwd: str, tools: List[dic
 # Skill Slash Commands — dynamic commands generated from installed skills
 # ============================================================================
 
-from agent.skill_commands import scan_skill_commands, get_skill_commands, build_skill_invocation_message
+from agent.skill_commands import scan_skill_commands, build_skill_invocation_message
 
 _skill_commands = scan_skill_commands()
 
@@ -1434,11 +1437,47 @@ class HermesCLI:
                 except (ValueError, Exception) as e:
                     _cprint(f"  Could not apply pending title: {e}")
                     self._pending_title = None
+
+            # Start local control API so external tools can switch models
+            self._start_control_api()
+
             return True
         except Exception as e:
             self.console.print(f"[bold red]Failed to initialize agent: {e}[/]")
             return False
     
+    def _start_control_api(self):
+        """Start the control API in a background thread for external model switching."""
+        try:
+            import asyncio as _aio
+            import threading
+            from gateway.control_api import ControlAPI
+
+            # Lightweight shim so ControlAPI can find our agent
+            class _CLIRunner:
+                def __init__(self, agent, session_id):
+                    self._running_agents = {session_id: agent}
+
+            shim = _CLIRunner(self.agent, self.session_id)
+            api = ControlAPI(shim)
+
+            def _run():
+                try:
+                    loop = _aio.new_event_loop()
+                    _aio.set_event_loop(loop)
+                    loop.run_until_complete(api.start())
+                    loop.run_forever()
+                except Exception as e:
+                    logger.error("Control API thread crashed: %s", e)
+
+            t = threading.Thread(target=_run, daemon=True, name="control-api")
+            t.start()
+            # Give it a moment to bind
+            import time
+            time.sleep(0.3)
+        except Exception as e:
+            logger.debug("Control API failed to start: %s", e)
+
     def show_banner(self):
         """Display the welcome banner in Claude Code style."""
         self.console.clear()
@@ -1700,7 +1739,7 @@ class HermesCLI:
 
     def _handle_rollback_command(self, command: str):
         """Handle /rollback — list or restore filesystem checkpoints."""
-        from tools.checkpoint_manager import CheckpointManager, format_checkpoint_list
+        from tools.checkpoint_manager import format_checkpoint_list
 
         if not hasattr(self, 'agent') or not self.agent:
             print("  No active agent session.")
@@ -1743,7 +1782,7 @@ class HermesCLI:
             result = mgr.restore(cwd, target_hash)
             if result["success"]:
                 print(f"  ✅ Restored to checkpoint {result['restored_to']}: {result['reason']}")
-                print(f"  A pre-rollback snapshot was saved automatically.")
+                print("  A pre-rollback snapshot was saved automatically.")
             else:
                 print(f"  ❌ {result['error']}")
 
@@ -1830,7 +1869,7 @@ class HermesCLI:
     def _show_tool_availability_warnings(self):
         """Show warnings about disabled tools due to missing API keys."""
         try:
-            from model_tools import check_tool_availability, TOOLSET_REQUIREMENTS
+            from model_tools import check_tool_availability
             
             available, unavailable = check_tool_availability()
             
@@ -2240,7 +2279,7 @@ class HermesCLI:
         if unauthed:
             names = ", ".join(p["label"] for p in unauthed)
             print(f"  Not configured: {names}")
-            print(f"  Run: hermes setup")
+            print("  Run: hermes setup")
             print()
 
         print("  Switch model:    /model <model-name>")
@@ -2272,9 +2311,9 @@ class HermesCLI:
                 self.system_prompt = new_prompt
                 self.agent = None  # Force re-init
                 if save_config_value("agent.system_prompt", new_prompt):
-                    print(f"(^_^)b System prompt set (saved to config)")
+                    print("(^_^)b System prompt set (saved to config)")
                 else:
-                    print(f"(^_^) System prompt set (session only)")
+                    print("(^_^) System prompt set (session only)")
                 print(f"  \"{new_prompt[:60]}{'...' if len(new_prompt) > 60 else ''}\"")
         else:
             # Show current prompt
@@ -2705,7 +2744,7 @@ class HermesCLI:
                     elif self._pending_title:
                         _cprint(f"  Session title (pending): {self._pending_title}")
                     else:
-                        _cprint(f"  No title set. Usage: /title <your session title>")
+                        _cprint("  No title set. Usage: /title <your session title>")
                 else:
                     _cprint("  Session database not available.")
         elif cmd_lower in ("/reset", "/new"):
@@ -2714,7 +2753,6 @@ class HermesCLI:
             # Use original case so model names like "Anthropic/Claude-Opus-4" are preserved
             parts = cmd_original.split(maxsplit=1)
             if len(parts) > 1:
-                from hermes_cli.auth import resolve_provider
                 from hermes_cli.models import (
                     parse_model_input,
                     validate_requested_model,
@@ -2740,8 +2778,8 @@ class HermesCLI:
                     except Exception as e:
                         provider_label = _PROVIDER_LABELS.get(target_provider, target_provider)
                         if target_provider == "custom":
-                            print(f"(>_<) Custom endpoint not configured. Set OPENAI_BASE_URL and OPENAI_API_KEY,")
-                            print(f"      or run: hermes setup → Custom OpenAI-compatible endpoint")
+                            print("(>_<) Custom endpoint not configured. Set OPENAI_BASE_URL and OPENAI_API_KEY,")
+                            print("      or run: hermes setup → Custom OpenAI-compatible endpoint")
                         else:
                             print(f"(>_<) Could not resolve credentials for provider '{provider_label}': {e}")
                         print(f"(^_^) Current model unchanged: {self.model}")
@@ -2844,6 +2882,7 @@ class HermesCLI:
                 qcmd = quick_commands[base_cmd.lstrip("/")]
                 if qcmd.get("type") == "exec":
                     import subprocess
+                    import shutil
                     exec_cmd = qcmd.get("command", "")
                     if exec_cmd:
                         try:
@@ -2910,7 +2949,7 @@ class HermesCLI:
 
         _cprint(f"  🔄 Background task #{task_num} started: \"{prompt[:60]}{'...' if len(prompt) > 60 else ''}\"")
         _cprint(f"  Task ID: {task_id}")
-        _cprint(f"  You can continue chatting — results will appear when done.\n")
+        _cprint("  You can continue chatting — results will appear when done.\n")
 
         def run_background():
             try:
@@ -3010,7 +3049,7 @@ class HermesCLI:
         if arg.startswith("theme"):
             theme_arg = arg[len("theme"):].strip()
             if theme_arg not in ("light", "dark", "auto"):
-                print(f"  Usage: /skin theme light|dark|auto")
+                print("  Usage: /skin theme light|dark|auto")
                 return
             set_theme_mode(theme_arg)
             save_config_value("display.theme_mode", theme_arg)
@@ -3033,14 +3072,14 @@ class HermesCLI:
                 print(f"  Theme mode:  auto (detected: {theme})")
             else:
                 print(f"  Theme mode:  {theme}")
-            print(f"  Available skins:")
+            print("  Available skins:")
             for s in skins:
                 marker = " ●" if s["name"] == current else "  "
                 source = f" ({s['source']})" if s["source"] == "user" else ""
                 print(f"   {marker} {s['name']}{source} — {s['description']}")
-            print(f"\n  Usage: /skin <name>              — change skin")
-            print(f"         /skin theme light|dark|auto — change theme mode")
-            print(f"  Custom skins: drop a YAML file in ~/.hermes/skins/\n")
+            print("\n  Usage: /skin <name>              — change skin")
+            print("         /skin theme light|dark|auto — change theme mode")
+            print("  Custom skins: drop a YAML file in ~/.hermes/skins/\n")
             return
 
         new_skin = arg
@@ -3216,7 +3255,7 @@ class HermesCLI:
 
         msg_count = len(self.conversation_history)
 
-        print(f"  📊 Session Token Usage")
+        print("  📊 Session Token Usage")
         print(f"  {'─' * 40}")
         print(f"  Prompt tokens (input):     {prompt:>10,}")
         print(f"  Completion tokens (output): {completion:>9,}")
@@ -3276,7 +3315,7 @@ class HermesCLI:
         sees the updated tools on the next turn.
         """
         try:
-            from tools.mcp_tool import shutdown_mcp_servers, discover_mcp_tools, _load_mcp_config, _servers, _lock
+            from tools.mcp_tool import shutdown_mcp_servers, discover_mcp_tools, _servers, _lock
 
             # Capture old server names
             with _lock:
@@ -3621,7 +3660,7 @@ class HermesCLI:
                             # But if it does (race condition), don't interrupt.
                             if self._clarify_state or self._clarify_freetext:
                                 continue
-                            print(f"\n⚡ New message detected, interrupting...")
+                            print("\n⚡ New message detected, interrupting...")
                             self.agent.interrupt(interrupt_msg)
                             # Debug: log to file (stdout may be devnull from redirect_stdout)
                             try:
@@ -3629,10 +3668,11 @@ class HermesCLI:
                                 _dbg = _pl.Path.home() / ".hermes" / "interrupt_debug.log"
                                 with open(_dbg, "a") as _f:
                                     import time as _t
+                                    _children_snap = list(self.agent._active_children)
                                     _f.write(f"{_t.strftime('%H:%M:%S')} interrupt fired: msg={str(interrupt_msg)[:60]!r}, "
-                                             f"children={len(self.agent._active_children)}, "
+                                             f"children={len(_children_snap)}, "
                                              f"parent._interrupt={self.agent._interrupt_requested}\n")
-                                    for _ci, _ch in enumerate(self.agent._active_children):
+                                    for _ci, _ch in enumerate(_children_snap):
                                         _f.write(f"  child[{_ci}]._interrupt={_ch._interrupt_requested}\n")
                             except Exception:
                                 pass
@@ -3758,7 +3798,7 @@ class HermesCLI:
             else:
                 duration_str = f"{seconds}s"
             
-            print(f"Resume this session with:")
+            print("Resume this session with:")
             print(f"  hermes --resume {self.session_id}")
             print()
             print(f"Session:        {self.session_id}")
