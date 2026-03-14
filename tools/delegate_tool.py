@@ -16,8 +16,6 @@ The parent's context only sees the delegation call and the summary result,
 never the child's intermediate tool calls or reasoning.
 """
 
-import contextlib
-import io
 import json
 import logging
 logger = logging.getLogger(__name__)
@@ -258,10 +256,11 @@ def _run_single_child(
     child_progress_cb = getattr(child, "tool_progress_callback", None)
 
     try:
-        # Run with stdout/stderr suppressed to prevent interleaved output
-        devnull = io.StringIO()
-        with contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
-            result = child.run_conversation(user_message=goal)
+        # Child runs with quiet_mode=True so it suppresses its own output.
+        # Do NOT use contextlib.redirect_stdout here — it mutates the global
+        # sys.stdout and races with the spinner thread when multiple children
+        # start concurrently, causing segfaults.
+        result = child.run_conversation(user_message=goal)
 
         # Flush any remaining batched progress to gateway
         if child_progress_cb and hasattr(child_progress_cb, '_flush'):
@@ -491,11 +490,6 @@ def delegate_task(
         completed_count = 0
         spinner_ref = getattr(parent_agent, '_delegate_spinner', None)
 
-        # Save stdout/stderr before the executor — redirect_stdout in child
-        # threads races on sys.stdout and can leave it as devnull permanently.
-        _saved_stdout = sys.stdout
-        _saved_stderr = sys.stderr
-
         with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_CHILDREN) as executor:
             futures = {}
             for i, t, child in children:
@@ -546,10 +540,6 @@ def delegate_task(
                         spinner_ref.update_text(f"🔀 {remaining} task{'s' if remaining != 1 else ''} remaining")
                     except Exception as e:
                         logger.debug("Spinner update_text failed: %s", e)
-
-        # Restore stdout/stderr in case redirect_stdout race left them as devnull
-        sys.stdout = _saved_stdout
-        sys.stderr = _saved_stderr
 
         # Sort by task_index so results match input order
         results.sort(key=lambda r: r["task_index"])
