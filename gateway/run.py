@@ -159,7 +159,7 @@ from gateway.session import (
     build_session_context_prompt,
     build_session_key,
 )
-from gateway.delivery import DeliveryRouter, DeliveryTarget
+from gateway.delivery import DeliveryRouter
 from gateway.platforms.base import BasePlatformAdapter, MessageEvent, MessageType
 
 logger = logging.getLogger(__name__)
@@ -1555,7 +1555,7 @@ class GatewayRunner:
             
             return response
             
-        except Exception as e:
+        except Exception:
             logger.exception("Agent error in session %s", session_key)
             return (
                 "Sorry, I encountered an unexpected error. "
@@ -1901,7 +1901,7 @@ class GatewayRunner:
                 else:
                     preview = prompt[:50] + "..." if len(prompt) > 50 else prompt
                 lines.append(f"• `{name}` — {preview}")
-            lines.append(f"\nUsage: `/personality <name>`")
+            lines.append("\nUsage: `/personality <name>`")
             return "\n".join(lines)
 
         def _resolve_prompt(value):
@@ -3803,6 +3803,15 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
     success = await runner.start()
     if not success:
         return False
+
+    # Start local-only control API for external tools (e.g., desloppify)
+    control_api = None
+    try:
+        from gateway.control_api import ControlAPI
+        control_api = ControlAPI(runner)
+        await control_api.start()
+    except Exception as e:
+        logger.warning("Control API failed to start (non-fatal): %s", e)
     
     # Write PID file so CLI can detect gateway is running
     import atexit
@@ -3824,6 +3833,10 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
     # Wait for shutdown
     await runner.wait_for_shutdown()
     
+    # Stop control API
+    if control_api:
+        await control_api.stop()
+
     # Stop cron ticker cleanly
     cron_stop.set()
     cron_thread.join(timeout=5)
