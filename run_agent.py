@@ -2732,78 +2732,73 @@ class AIAgent:
             }
 
     # ── Control queue ─────────────────────────────────────────────────────
+    #
+    # External callers (control API, desloppify) send commands via
+    # execute_control(). Immediate commands run in the caller's thread;
+    # deferred commands queue and drain at safe points in the agent loop.
+    #
+    # To add a command: add an entry to _control_handlers and a _ctrl_* method.
+    #   fn:        the method to call (receives **kwargs from JSON + loop context)
+    #   immediate: True = safe to call from any thread (no message context needed)
+    #   external:  False to hide from the HTTP API (default: True / exposed)
+    #
+    # Handler convention: return a notification string → printed with ⚙️ prefix.
+    # Return None if the handler prints its own output (e.g. _switch_model).
 
     @property
     def external_control_commands(self) -> list[str]:
-        """Command names exposed via the HTTP control API. All by default; set external=False to hide."""
-        return [name for name, entry in self._control_handlers.items() if entry.get("external", True)]
-
-    def enqueue_control(self, command: str, **params):
-        """Queue a control command from any thread."""
-        with self._control_lock:
-            self._control_queue.append({"command": command, **params})
-
-    def _run_control_handler(self, command: str, entry: dict, **params):
-        """Run a handler and emit a notification.
-
-        Convention: handlers return a string → printed as notification.
-        Return None if the handler prints its own output (e.g. _switch_model).
-        """
-        result = entry["fn"](**params)
-        if result is not None:
-            print(f"{self.log_prefix}⚙️  {result}")
+        return [name for name, entry in self._control_handlers.items()
+                if entry.get("external", True)]
 
     def execute_control(self, command: str, **params) -> dict:
-        """Execute a control command immediately (for immediate-capable handlers).
-
-        Returns a result dict. Falls back to enqueue for non-immediate handlers.
-        """
+        """Run a control command. Immediate commands execute now; others queue."""
         entry = self._control_handlers.get(command)
         if not entry:
             return {"success": False, "error": f"Unknown command: '{command}'"}
         if not entry.get("immediate"):
-            self.enqueue_control(command, **params)
-            return {"success": True, "queued": True, "message": f"'{command}' queued — will apply on next turn"}
+            with self._control_lock:
+                self._control_queue.append({"command": command, **params})
+            return {"success": True, "queued": True,
+                    "message": f"'{command}' queued — will apply on next turn"}
         try:
-            self._run_control_handler(command, entry, **params)
+            self._run_ctrl(entry["fn"], **params)
             return {"success": True, "message": f"'{command}' executed"}
         except Exception as e:
             logging.error("Control command '%s' failed: %s", command, e)
             return {"success": False, "error": str(e)}
 
-    def _drain_control_queue(self, messages: list = None, system_message: str = None, task_id: str = "default"):
-        """Process queued commands. Called between loop iterations.
-
-        messages/system_message/task_id are loop context passed to handlers
-        that need them (e.g. compact).  Handlers that don't need context
-        simply ignore them via **_.
-        """
+    def _drain_control_queue(self, messages: list = None,
+                             system_message: str = None, task_id: str = "default"):
+        """Process queued (deferred) commands. Called at safe points in the loop."""
         with self._control_lock:
             pending = list(self._control_queue)
             self._control_queue.clear()
+        ctx = dict(messages=messages, system_message=system_message, task_id=task_id)
         for cmd in pending:
             name = cmd.get("command")
             entry = self._control_handlers.get(name)
-            if entry:
-                params = {k: v for k, v in cmd.items() if k != "command"}
-                try:
-                    self._run_control_handler(name, entry, messages=messages, system_message=system_message, task_id=task_id, **params)
-                except Exception as e:
-                    logging.error("Control command '%s' failed: %s", name, e)
-            else:
+            if not entry:
                 logging.warning("Unknown control command: %s", name)
+                continue
+            params = {k: v for k, v in cmd.items() if k != "command"}
+            try:
+                self._run_ctrl(entry["fn"], **ctx, **params)
+            except Exception as e:
+                logging.error("Control command '%s' failed: %s", name, e)
+
+    def _run_ctrl(self, fn, **kwargs):
+        """Call a handler and print its notification (if any)."""
+        result = fn(**kwargs)
+        if result is not None:
+            print(f"{self.log_prefix}⚙️  {result}")
 
     # ── Control command implementations ──
-    # Convention: return a notification string, or None if the method prints its own.
-    # All accept **_ to ignore extra kwargs from the JSON dispatch.
 
     def _ctrl_switch_model(self, provider: str, model: str, **_):
         self._switch_model(provider, model)
-        return None  # _switch_model prints its own notification
 
     def _ctrl_interrupt(self, message: str = None, **_):
         self.interrupt(message)
-        return None  # interrupt() prints its own notification
 
     def _ctrl_get_status(self, **_):
         return f"model={self.provider}:{self.model} session={self.session_id} interrupted={self._interrupt_requested}"
