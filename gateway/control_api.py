@@ -47,7 +47,18 @@ class ControlAPI:
         self.app.router.add_get("/sessions", self.list_sessions)
         self.app.router.add_get("/sessions/{key}", self.get_session)
         self.app.router.add_post("/sessions/{key}/switch-model", self.switch_model)
+        self.app.router.add_post("/sessions/{key}/control", self.control)
         self.app.router.add_get("/health", self.health)
+
+    # ── Helpers ─────────────────────────────────────────────────────────
+
+    def _resolve_agent(self, key: str):
+        """Look up a running agent by session key.  '_any' returns the first."""
+        if key == "_any":
+            if not self.runner._running_agents:
+                return None
+            key = next(iter(self.runner._running_agents))
+        return self.runner._running_agents.get(key)
 
     # ── Endpoints ────────────────────────────────────────────────────────
 
@@ -105,19 +116,10 @@ class ControlAPI:
                 status=400,
             )
 
-        # _any: switch whichever agent is running
-        if key == "_any":
-            if not self.runner._running_agents:
-                return _json_response(
-                    {"error": "No running agents"},
-                    status=404,
-                )
-            key = next(iter(self.runner._running_agents))
-
-        agent = self.runner._running_agents.get(key)
+        agent = self._resolve_agent(key)
         if not agent:
             return _json_response(
-                {"error": f"No running agent for session '{key}'"},
+                {"error": f"No running agent for '{key}'"},
                 status=404,
             )
 
@@ -127,20 +129,45 @@ class ControlAPI:
             key, provider, model, reason,
         )
 
-        # Defer the switch so it happens between iterations, not mid-API-call.
-        # If the agent has the deferred mechanism, use it; otherwise switch directly.
-        if hasattr(agent, "_pending_model_switch"):
-            agent._pending_model_switch = {"provider": provider, "model": model}
-            return _json_response({
-                "success": True,
-                "message": "Model switch queued — will apply before next API call",
-                "current": {"provider": getattr(agent, "provider", ""), "model": getattr(agent, "model", "")},
-                "target": {"provider": provider, "model": model},
-            })
-        else:
-            result = agent._switch_model(provider, model)
-            status = 200 if result.get("success") else 500
-            return _json_response(result, status=status)
+        agent.enqueue_control("switch_model", provider=provider, model=model)
+        return _json_response({
+            "success": True,
+            "message": "Model switch queued — will apply before next API call",
+            "current": {"provider": getattr(agent, "provider", ""), "model": getattr(agent, "model", "")},
+            "target": {"provider": provider, "model": model},
+        })
+
+    async def control(self, request: web.Request) -> web.Response:
+        """Generic control endpoint — enqueue any registered command.
+
+        POST body: {"command": "...", ...params}
+        """
+        key = request.match_info["key"]
+
+        try:
+            body = await request.json()
+        except Exception:
+            return _json_response({"error": "Invalid JSON body"}, status=400)
+
+        command = body.get("command", "").strip()
+        if not command:
+            return _json_response({"error": "'command' is required"}, status=400)
+
+        agent = self._resolve_agent(key)
+        if agent is None:
+            return _json_response({"error": f"No running agent for '{key}'"}, status=404)
+
+        # Validate command name before enqueuing
+        if not hasattr(agent, '_control_handlers') or command not in agent._control_handlers:
+            available = list(agent._control_handlers.keys()) if hasattr(agent, '_control_handlers') else []
+            return _json_response(
+                {"error": f"Unknown command: '{command}'", "available": available},
+                status=400,
+            )
+
+        params = {k: v for k, v in body.items() if k != "command"}
+        agent.enqueue_control(command, **params)
+        return _json_response({"success": True, "message": f"'{command}' queued"})
 
     # ── Lifecycle ────────────────────────────────────────────────────────
 

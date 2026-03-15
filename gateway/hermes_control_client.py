@@ -78,6 +78,20 @@ class HermesControl:
         """Get info about a specific session."""
         return self._request("GET", f"/sessions/{session_key}")
 
+    def control(self, command: str, session_key: str = "_any", **params) -> dict:
+        """Send a generic control command to a running agent.
+
+        Args:
+            command: Command name (e.g., "switch_model", "compact_context").
+            session_key: Session to target. "_any" targets the first running agent.
+            **params: Additional parameters forwarded to the command handler.
+
+        Returns:
+            Dict with success/failure info.
+        """
+        return self._request("POST", f"/sessions/{session_key}/control",
+                             {"command": command, **params})
+
     def switch_model(
         self,
         provider: str,
@@ -101,6 +115,10 @@ class HermesControl:
             "model": model,
             "reason": reason or "desloppify",
         })
+
+    def compact_context(self, session_key: str = "_any") -> dict:
+        """Force context compaction on a running agent session."""
+        return self.control("compact_context", session_key)
 
     def is_available(self) -> bool:
         """Check if a Hermes gateway with control API is reachable."""

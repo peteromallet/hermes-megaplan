@@ -1,0 +1,125 @@
+"""Tests for the control API command validation and compact handler."""
+
+import asyncio
+import importlib.util
+import json
+import os
+import sys
+import types
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+# Load control_api directly from file to avoid broken gateway/__init__.py
+_spec = importlib.util.spec_from_file_location(
+    "gateway.control_api",
+    os.path.join(os.path.dirname(__file__), "..", "..", "gateway", "control_api.py"),
+    submodule_search_locations=[],
+)
+_mod = importlib.util.module_from_spec(_spec)
+if "gateway" not in sys.modules:
+    _pkg = types.ModuleType("gateway")
+    _pkg.__path__ = [os.path.join(os.path.dirname(__file__), "..", "..", "gateway")]
+    sys.modules["gateway"] = _pkg
+sys.modules["gateway.control_api"] = _mod
+_spec.loader.exec_module(_mod)
+ControlAPI = _mod.ControlAPI
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────
+
+
+def _make_control_api():
+    """Create a ControlAPI with a mock runner and a fake agent."""
+    runner = MagicMock()
+    agent = MagicMock()
+    agent._control_handlers = {
+        "switch_model": MagicMock(),
+        "compact_context": MagicMock(),
+    }
+    runner._running_agents = {"sess1": agent}
+    api = ControlAPI(runner)
+    return api, agent
+
+
+def _make_request(key, body):
+    request = MagicMock()
+    request.match_info = {"key": key}
+    request.json = AsyncMock(return_value=body)
+    return request
+
+
+# ── Command validation tests ────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_control_unknown_command_returns_400():
+    """POST /control with an unknown command should return 400."""
+    api, agent = _make_control_api()
+    request = _make_request("sess1", {"command": "nonexistent"})
+
+    resp = await api.control(request)
+
+    assert resp.status == 400
+    body = json.loads(resp.text)
+    assert "error" in body
+    assert "nonexistent" in body["error"]
+    assert "available" in body
+    assert set(body["available"]) == {"switch_model", "compact_context"}
+    agent.enqueue_control.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_control_valid_command_enqueues():
+    """POST /control with a known command should enqueue and return 200."""
+    api, agent = _make_control_api()
+    request = _make_request("sess1", {"command": "compact_context"})
+
+    resp = await api.control(request)
+
+    assert resp.status == 200
+    agent.enqueue_control.assert_called_once_with("compact_context")
+
+
+@pytest.mark.asyncio
+async def test_control_valid_command_with_params():
+    """Extra params besides 'command' are forwarded to enqueue_control."""
+    api, agent = _make_control_api()
+    request = _make_request("sess1", {
+        "command": "switch_model",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+    })
+
+    resp = await api.control(request)
+
+    assert resp.status == 200
+    agent.enqueue_control.assert_called_once_with(
+        "switch_model", provider="anthropic", model="claude-sonnet-4-6",
+    )
+
+
+# ── Compact handler tests ───────────────────────────────────────────────
+
+
+def test_compact_handler_uses_compress_context_cached_prompt():
+    """After compact handler runs, _cached_system_prompt is set by _compress_context, not the handler."""
+    from run_agent import AIAgent
+
+    agent = object.__new__(AIAgent)
+    agent._cached_system_prompt = "old prompt"
+
+    compressed_messages = [{"role": "user", "content": "summarized"}]
+    new_prompt = "new system prompt from compress"
+
+    def fake_compress(messages, system_message, task_id="default"):
+        agent._cached_system_prompt = new_prompt
+        return compressed_messages, new_prompt
+
+    agent._compress_context = fake_compress
+
+    messages = [{"role": "user", "content": "hello"}, {"role": "assistant", "content": "hi"}]
+    agent._handle_ctrl_compact(messages, "sys msg", task_id="default")
+
+    assert messages == compressed_messages
+    assert agent._cached_system_prompt == new_prompt
