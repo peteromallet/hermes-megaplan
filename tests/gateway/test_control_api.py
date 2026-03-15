@@ -34,6 +34,7 @@ def _make_control_api():
     runner = MagicMock()
     agent = MagicMock()
     agent.external_control_commands = ["switch_model", "compact_context"]
+    agent.execute_control = MagicMock(return_value={"success": True, "message": "ok"})
     runner._running_agents = {"sess1": agent}
     api = ControlAPI(runner)
     return api, agent
@@ -63,7 +64,7 @@ async def test_control_unknown_command_returns_400():
     assert "nonexistent" in body["error"]
     assert "available" in body
     assert set(body["available"]) == {"switch_model", "compact_context"}
-    agent.enqueue_control.assert_not_called()
+    agent.execute_control.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -75,12 +76,12 @@ async def test_control_valid_command_enqueues():
     resp = await api.control(request)
 
     assert resp.status == 200
-    agent.enqueue_control.assert_called_once_with("compact_context")
+    agent.execute_control.assert_called_once_with("compact_context")
 
 
 @pytest.mark.asyncio
 async def test_control_valid_command_with_params():
-    """Extra params besides 'command' are forwarded to enqueue_control."""
+    """Extra params besides 'command' are forwarded to execute_control."""
     api, agent = _make_control_api()
     request = _make_request("sess1", {
         "command": "switch_model",
@@ -91,7 +92,7 @@ async def test_control_valid_command_with_params():
     resp = await api.control(request)
 
     assert resp.status == 200
-    agent.enqueue_control.assert_called_once_with(
+    agent.execute_control.assert_called_once_with(
         "switch_model", provider="anthropic", model="claude-sonnet-4-6",
     )
 
@@ -113,7 +114,7 @@ async def test_control_internal_command_rejected():
     body = json.loads(resp.text)
     assert "_internal_reset" in body["error"]
     assert "switch_model" in body["available"]
-    agent.enqueue_control.assert_not_called()
+    agent.execute_control.assert_not_called()
 
 
 # ── Compact handler tests ───────────────────────────────────────────────

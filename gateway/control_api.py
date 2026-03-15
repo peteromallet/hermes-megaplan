@@ -129,13 +129,10 @@ class ControlAPI:
             key, provider, model, reason,
         )
 
-        agent.enqueue_control("switch_model", provider=provider, model=model)
-        return _json_response({
-            "success": True,
-            "message": "Model switch queued — will apply before next API call",
-            "current": {"provider": getattr(agent, "provider", ""), "model": getattr(agent, "model", "")},
-            "target": {"provider": provider, "model": model},
-        })
+        result = agent.execute_control("switch_model", provider=provider, model=model)
+        result["target"] = {"provider": provider, "model": model}
+        status = 200 if result.get("success") else 500
+        return _json_response(result, status=status)
 
     async def control(self, request: web.Request) -> web.Response:
         """Generic control endpoint — enqueue any registered command.
@@ -166,8 +163,9 @@ class ControlAPI:
             )
 
         params = {k: v for k, v in body.items() if k != "command"}
-        agent.enqueue_control(command, **params)
-        return _json_response({"success": True, "message": f"'{command}' queued"})
+        result = agent.execute_control(command, **params)
+        status = 200 if result.get("success") else 500
+        return _json_response(result, status=status)
 
     # ── Lifecycle ────────────────────────────────────────────────────────
 

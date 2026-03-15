@@ -349,10 +349,12 @@ class AIAgent:
         # commands; the agent loop drains them at safe points between iterations.
         # Handlers marked external=True are exposed via the HTTP control API;
         # internal-only handlers can only be triggered by direct enqueue_control calls.
+        # Handlers marked immediate=True execute in the caller's thread (no queuing);
+        # non-immediate handlers queue and drain when the agent loop is active.
         self._control_queue = collections.deque()
         self._control_lock = threading.Lock()
         self._control_handlers = {
-            "switch_model": {"fn": self._handle_ctrl_switch_model, "external": True},
+            "switch_model": {"fn": self._handle_ctrl_switch_model, "external": True, "immediate": True},
             "compact_context": {"fn": self._handle_ctrl_compact, "external": True},
         }
         
@@ -2739,6 +2741,24 @@ class AIAgent:
         with self._control_lock:
             self._control_queue.append({"command": command, **params})
 
+    def execute_control(self, command: str, **params) -> dict:
+        """Execute a control command immediately (for immediate-capable handlers).
+
+        Returns a result dict. Falls back to enqueue for non-immediate handlers.
+        """
+        entry = self._control_handlers.get(command)
+        if not entry:
+            return {"success": False, "error": f"Unknown command: '{command}'"}
+        if not entry.get("immediate"):
+            self.enqueue_control(command, **params)
+            return {"success": True, "queued": True, "message": f"'{command}' queued — will apply on next turn"}
+        try:
+            entry["fn"](**params)
+            return {"success": True, "message": f"'{command}' executed"}
+        except Exception as e:
+            logging.error("Control command '%s' failed: %s", command, e)
+            return {"success": False, "error": str(e)}
+
     def _drain_control_queue(self, messages: list = None, system_message: str = None, task_id: str = "default"):
         """Process queued commands. Called between loop iterations.
 
@@ -2762,12 +2782,8 @@ class AIAgent:
                 logging.warning("Unknown control command: %s", name)
 
     def _handle_ctrl_switch_model(self, provider: str, model: str, **_):
-        """Control handler: switch model."""
-        old_model = f"{self.provider}:{self.model}"
+        """Control handler: switch model. Immediate — safe to call from any thread."""
         self._switch_model(provider, model)
-        new_model = f"{self.provider}:{self.model}"
-        if not self.quiet_mode:
-            print(f"\n🔄 Model switched: {old_model} → {new_model}")
 
     def _handle_ctrl_compact(self, messages: list, system_message: str, task_id: str = "default", **_):
         """Control handler: force context compaction."""
