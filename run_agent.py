@@ -355,6 +355,9 @@ class AIAgent:
         self._control_handlers = {
             "switch_model": {"fn": self._handle_ctrl_switch_model, "immediate": True},
             "compact_context": {"fn": self._handle_ctrl_compact},
+            "interrupt": {"fn": self._handle_ctrl_interrupt, "immediate": True},
+            "get_status": {"fn": self._handle_ctrl_get_status, "immediate": True},
+            "flush_memories": {"fn": self._handle_ctrl_flush_memories},
         }
         
         # Subagent delegation state
@@ -2795,6 +2798,26 @@ class AIAgent:
         Returns None because _switch_model prints its own notification."""
         self._switch_model(provider, model)
         return None  # _switch_model already prints
+
+    def _handle_ctrl_interrupt(self, message: str = None, **_):
+        """Control handler: interrupt the agent loop. Immediate."""
+        self.interrupt(message)
+        return None  # interrupt() already prints
+
+    def _handle_ctrl_get_status(self, **_):
+        """Control handler: return current agent status. Immediate."""
+        return (
+            f"model={self.provider}:{self.model} "
+            f"session={self.session_id} "
+            f"interrupted={self._interrupt_requested}"
+        )
+
+    def _handle_ctrl_flush_memories(self, messages: list = None, **_):
+        """Control handler: flush pending memories."""
+        if not messages:
+            return "Flush skipped: no messages in context yet"
+        self.flush_memories(messages)
+        return "Memories flushed"
 
     def _handle_ctrl_compact(self, messages: list, system_message: str, task_id: str = "default", **_):
         """Control handler: force context compaction."""
