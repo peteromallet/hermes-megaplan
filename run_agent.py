@@ -4210,7 +4210,8 @@ class AIAgent:
                         break  # Under threshold
 
         # Drain any queued control commands before entering the loop
-        self._drain_control_queue()
+        self._drain_control_queue(messages, system_message, effective_task_id)
+        active_system_prompt = self._cached_system_prompt  # pick up changes from compact
 
         # Main conversation loop
         api_call_count = 0
