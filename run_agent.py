@@ -2763,16 +2763,23 @@ class AIAgent:
 
     def _handle_ctrl_switch_model(self, provider: str, model: str, **_):
         """Control handler: switch model."""
+        old_model = f"{self.provider}:{self.model}"
         self._switch_model(provider, model)
+        new_model = f"{self.provider}:{self.model}"
+        if not self.quiet_mode:
+            print(f"\n🔄 Model switched: {old_model} → {new_model}")
 
     def _handle_ctrl_compact(self, messages: list, system_message: str, task_id: str = "default", **_):
         """Control handler: force context compaction."""
         if not messages:
             logging.warning("compact_context: no messages available")
             return
+        n_before = len(messages)
         compressed, _ = self._compress_context(messages, system_message, task_id=task_id)
         messages.clear()
         messages.extend(compressed)
+        if not self.quiet_mode:
+            print(f"\n📦 Context compacted: {n_before} → {len(messages)} messages")
 
     # ── End provider fallback ──────────────────────────────────────────────
 

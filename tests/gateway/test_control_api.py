@@ -125,6 +125,7 @@ def test_compact_handler_uses_compress_context_cached_prompt():
 
     agent = object.__new__(AIAgent)
     agent._cached_system_prompt = "old prompt"
+    agent.quiet_mode = True
 
     compressed_messages = [{"role": "user", "content": "summarized"}]
     new_prompt = "new system prompt from compress"
