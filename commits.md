@@ -212,3 +212,23 @@
 **Good:** Fixes a real bug where `GET /sessions/_any` returned 404 because `get_session` did a raw dict lookup.
 
 **Bad:** The tuple return is slightly awkward — callers must unpack even when they don't need the resolved key. But it's 3 callers and the alternative (separate method) is worse.
+
+---
+
+## `299bb35` — chore: clean up test imports and review control queue commits
+
+**What it does:** Removes the `importlib.util.spec_from_file_location` hack from `test_control_api.py` (no longer needed after `gateway/__init__.py` fix), removes unused `asyncio` import, clarifies the `min_needed` calculation in the compact handler.
+
+**Good:** Straightforward cleanup. The test file went from 27 lines of import gymnastics to `from gateway.control_api import ControlAPI`. The `min_needed` ternary is much clearer than the `and`/`or` chain it replaced.
+
+**Bad:** Nothing.
+
+---
+
+## `40bd415` — fix: pass messages to pre-loop control queue drain
+
+**What it does:** The pre-loop `_drain_control_queue()` call was missing `messages`/`system_message`/`task_id` arguments. This meant any compact queued before the user's message would hit the `if not messages` early exit and report "no messages in context yet" even though the conversation history existed. Also adds the `active_system_prompt` refresh after the drain (same pattern as the in-loop drain).
+
+**Good:** Fixes a real bug found during live testing. Two-line fix, clear cause and effect.
+
+**Bad:** This should have been caught in the original control queue commit (`8a7ce57`). The pre-loop drain was deliberately left argument-free with the rationale that "compact can't fire there (no messages passed)" — but that reasoning was wrong once the queue became externally accessible. External callers can queue compact at any time.
