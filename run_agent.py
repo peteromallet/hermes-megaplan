@@ -347,15 +347,14 @@ class AIAgent:
 
         # Control queue — external callers (control API, desloppify) enqueue
         # commands; the agent loop drains them at safe points between iterations.
-        # Handlers marked external=True are exposed via the HTTP control API;
-        # internal-only handlers can only be triggered by direct enqueue_control calls.
         # Handlers marked immediate=True execute in the caller's thread (no queuing);
         # non-immediate handlers queue and drain when the agent loop is active.
+        # All handlers are exposed via the HTTP control API unless external=False.
         self._control_queue = collections.deque()
         self._control_lock = threading.Lock()
         self._control_handlers = {
-            "switch_model": {"fn": self._handle_ctrl_switch_model, "external": True, "immediate": True},
-            "compact_context": {"fn": self._handle_ctrl_compact, "external": True},
+            "switch_model": {"fn": self._handle_ctrl_switch_model, "immediate": True},
+            "compact_context": {"fn": self._handle_ctrl_compact},
         }
         
         # Subagent delegation state
@@ -2733,8 +2732,8 @@ class AIAgent:
 
     @property
     def external_control_commands(self) -> list[str]:
-        """Command names exposed via the HTTP control API."""
-        return [name for name, entry in self._control_handlers.items() if entry.get("external")]
+        """Command names exposed via the HTTP control API. All by default; set external=False to hide."""
+        return [name for name, entry in self._control_handlers.items() if entry.get("external", True)]
 
     def enqueue_control(self, command: str, **params):
         """Queue a control command from any thread."""
