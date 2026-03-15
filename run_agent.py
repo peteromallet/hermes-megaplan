@@ -21,6 +21,7 @@ Usage:
 """
 
 import atexit
+import collections
 import concurrent.futures
 import copy
 import hashlib
@@ -344,8 +345,14 @@ class AIAgent:
         self._interrupt_requested = False
         self._interrupt_message = None  # Optional message that triggered interrupt
 
-        # Deferred model switch — set by external control API, applied between iterations
-        self._pending_model_switch = None  # dict with provider, model keys
+        # Control queue — external callers (control API, desloppify) enqueue
+        # commands; the agent loop drains them at safe points between iterations.
+        self._control_queue = collections.deque()
+        self._control_lock = threading.Lock()
+        self._control_handlers = {
+            "switch_model": self._handle_ctrl_switch_model,
+            "compact_context": self._handle_ctrl_compact,
+        }
         
         # Subagent delegation state
         self._delegate_depth = 0        # 0 = top-level agent, incremented for children
@@ -2718,6 +2725,43 @@ class AIAgent:
                 "current": {"provider": old_provider, "model": old_model},
             }
 
+    # ── Control queue ─────────────────────────────────────────────────────
+
+    def enqueue_control(self, command: str, **params):
+        """Queue a control command from any thread."""
+        with self._control_lock:
+            self._control_queue.append({"command": command, **params})
+
+    def _drain_control_queue(self, messages: list = None, system_message: str = None, task_id: str = "default"):
+        """Process queued commands. Called between loop iterations."""
+        with self._control_lock:
+            pending = list(self._control_queue)
+            self._control_queue.clear()
+        for cmd in pending:
+            name = cmd.get("command")
+            handler = self._control_handlers.get(name)
+            if handler:
+                params = {k: v for k, v in cmd.items() if k != "command"}
+                try:
+                    handler(messages=messages, system_message=system_message, task_id=task_id, **params)
+                except Exception as e:
+                    logging.error("Control command '%s' failed: %s", name, e)
+            else:
+                logging.warning("Unknown control command: %s", name)
+
+    def _handle_ctrl_switch_model(self, provider: str, model: str, **_):
+        """Control handler: switch model."""
+        self._switch_model(provider, model)
+
+    def _handle_ctrl_compact(self, messages: list, system_message: str, task_id: str = "default", **_):
+        """Control handler: force context compaction."""
+        if not messages:
+            logging.warning("compact_context: no messages available")
+            return
+        compressed, _ = self._compress_context(messages, system_message, task_id=task_id)
+        messages.clear()
+        messages.extend(compressed)
+
     # ── End provider fallback ──────────────────────────────────────────────
 
     def _build_api_kwargs(self, api_messages: list) -> dict:
@@ -4117,11 +4161,8 @@ class AIAgent:
                     if _preflight_tokens < self.context_compressor.threshold_tokens:
                         break  # Under threshold
 
-        # Apply any deferred model switch before entering the loop
-        if self._pending_model_switch:
-            _ps = self._pending_model_switch
-            self._pending_model_switch = None
-            self._switch_model(_ps["provider"], _ps["model"])
+        # Drain any queued control commands before entering the loop
+        self._drain_control_queue()
 
         # Main conversation loop
         api_call_count = 0
@@ -4145,11 +4186,9 @@ class AIAgent:
                     print("\n⚡ Breaking out of tool loop due to interrupt...")
                 break
 
-            # Apply deferred model switch from external control API
-            if self._pending_model_switch:
-                _ps = self._pending_model_switch
-                self._pending_model_switch = None
-                self._switch_model(_ps["provider"], _ps["model"])
+            # Drain queued control commands (model switch, compaction, etc.)
+            self._drain_control_queue(messages, system_message, effective_task_id)
+            active_system_prompt = self._cached_system_prompt  # pick up changes from compact handler
 
             api_call_count += 1
             if not self.iteration_budget.consume():
