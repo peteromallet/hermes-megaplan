@@ -53,12 +53,13 @@ class ControlAPI:
     # ── Helpers ─────────────────────────────────────────────────────────
 
     def _resolve_agent(self, key: str):
-        """Look up a running agent by session key.  '_any' returns the first."""
+        """Look up a running agent by session key.  '_any' returns the first.
+        Returns (resolved_key, agent) or (key, None) if not found."""
         if key == "_any":
             if not self.runner._running_agents:
-                return None
+                return key, None
             key = next(iter(self.runner._running_agents))
-        return self.runner._running_agents.get(key)
+        return key, self.runner._running_agents.get(key)
 
     # ── Endpoints ────────────────────────────────────────────────────────
 
@@ -80,10 +81,10 @@ class ControlAPI:
 
     async def get_session(self, request: web.Request) -> web.Response:
         key = request.match_info["key"]
-        agent = self.runner._running_agents.get(key)
+        key, agent = self._resolve_agent(key)
         if not agent:
             return _json_response(
-                {"error": f"No running agent for session '{key}'"},
+                {"error": f"No running agent for '{key}'"},
                 status=404,
             )
         return _json_response({
@@ -116,7 +117,7 @@ class ControlAPI:
                 status=400,
             )
 
-        agent = self._resolve_agent(key)
+        key, agent = self._resolve_agent(key)
         if not agent:
             return _json_response(
                 {"error": f"No running agent for '{key}'"},
@@ -150,7 +151,7 @@ class ControlAPI:
         if not command:
             return _json_response({"error": "'command' is required"}, status=400)
 
-        agent = self._resolve_agent(key)
+        key, agent = self._resolve_agent(key)
         if agent is None:
             return _json_response({"error": f"No running agent for '{key}'"}, status=404)
 
