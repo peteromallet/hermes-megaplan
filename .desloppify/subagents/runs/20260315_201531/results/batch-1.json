@@ -1,0 +1,171 @@
+{
+  "batch": "cross_module_architecture",
+  "batch_index": 1,
+  "assessments": {
+    "cross_module_architecture": 62.5
+  },
+  "dimension_notes": {
+    "cross_module_architecture": {
+      "evidence": [
+        "Bidirectional coupling between root (.) and hermes_cli/: 13 edges out, 11 edges back. hermes_cli/callbacks.py imports CLI_CONFIG from cli.py; hermes_cli/main.py imports cli.main; hermes_cli imports from hermes_state, model_tools, utils, toolsets at root level.",
+        "tools/code_execution_tool.py (line 656) and tools/delegate_tool.py (line 649) both import CLI_CONFIG from root-level cli.py, violating dependency direction: leaf tool modules reaching into the UI/CLI layer for configuration.",
+        "tools/registry.py line 124 imports _run_async from model_tools, directly contradicting its own docstring (lines 7-8) which states 'tools/registry.py (no imports from model_tools or tool files)'.",
+        "gateway/run.py line 2813 imports private symbols _load_mcp_config, _servers, _lock from tools/mcp_tool -- crossing both package boundary and privacy convention.",
+        "_is_oauth_token (private function in agent/anthropic_adapter.py) is imported cross-module by run_agent.py, hermes_cli/models.py, and hermes_cli/doctor.py -- a shared utility hidden behind a private name.",
+        "Bidirectional coupling between gateway/ and tools/: 9 edges gateway->tools, 4 edges tools->gateway. gateway/channel_directory.py imports private _send_slack from tools/send_message_tool.py.",
+        "30+ production files use sys.path.insert at import time to enable cross-package imports, indicating the project lacks proper package installation and relies on runtime path manipulation.",
+        "Three hub files (cli.py 5162 LOC, run_agent.py 5725 LOC, gateway/run.py 4067 LOC) collectively act as coupling magnifiers, importing from nearly every subsystem."
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "architectural_change",
+      "confidence": "high",
+      "issues_preventing_higher_score": "N/A - score is below 85"
+    }
+  },
+  "dimension_judgment": {
+    "cross_module_architecture": {
+      "dimension_character": "The codebase has multiple significant boundary violations: bidirectional coupling between root and hermes_cli, tools reaching up to the CLI layer for configuration, documented architecture contracts contradicted by runtime imports (tools/registry.py), and widespread private symbol access across module boundaries. While the gateway/platforms hierarchy and tools/interrupt signaling show intentional, clean design, the three massive hub files (cli.py, run_agent.py, gateway/run.py) amplify coupling and make changes to shared symbols ripple unpredictably. The pervasive sys.path.insert pattern (30+ files) reflects a project that has outgrown its ad-hoc import infrastructure.",
+      "score_rationale": "The score reflects significant structural boundary debt at the codebase level. A developer making changes would encounter recurring boundary violations and bidirectional coupling that make it hard to predict change impact. The tools->cli.py upward dependency and the registry's violated contract are high-confidence issues any senior engineer would flag. However, localized areas (gateway/platforms hierarchy, interrupt module, config types) show intentional architecture, preventing a lower score. This lands between 60 (significant drag) and 70 (mixed) -- the bidirectional coupling patterns and hub file concentration push it toward the lower end."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "bidirectional_root_hermes_cli_coupling",
+      "summary": "Root-level files and hermes_cli/ have 24 bidirectional import edges, creating a dependency cycle",
+      "related_files": ["hermes_cli/callbacks.py", "hermes_cli/main.py", "hermes_cli/banner.py", "hermes_cli/tools_config.py", "cli.py"],
+      "evidence": [
+        "hermes_cli/callbacks.py line 23: 'from cli import CLI_CONFIG' -- hermes_cli reaches back into root cli.py",
+        "hermes_cli/main.py line 503: 'from cli import main as cli_main' -- entry point imports from root",
+        "hermes_cli/banner.py line 251: 'from model_tools import check_tool_availability' -- hermes_cli imports root model_tools",
+        "cli.py has 30+ imports from hermes_cli/ modules (skin_engine, banner, commands, callbacks, etc.)",
+        "Coupling matrix shows 13 edges . -> hermes_cli/ and 11 edges hermes_cli/ -> ."
+      ],
+      "suggestion": "Extract CLI_CONFIG and other shared state into a dedicated config/state module (e.g., hermes_cli/runtime_state.py) that both cli.py and hermes_cli can import without circular dependency. Move model_tools helpers used by hermes_cli into a shared location.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "tools_import_cli_config",
+      "summary": "tools/code_execution_tool.py and tools/delegate_tool.py import CLI_CONFIG from root cli.py",
+      "related_files": ["tools/code_execution_tool.py", "tools/delegate_tool.py", "cli.py"],
+      "evidence": [
+        "tools/code_execution_tool.py line 656: 'from cli import CLI_CONFIG'",
+        "tools/delegate_tool.py line 649: 'from cli import CLI_CONFIG'",
+        "Tools are leaf modules that should receive configuration via parameters, not reach up to the CLI layer"
+      ],
+      "suggestion": "Have the agent pass tool configuration down via the tool handler arguments or a config object, rather than having tools import from the CLI module. delegate_tool already has a fallback to hermes_cli.config.load_config() -- make that the primary path.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "registry_violates_own_contract",
+      "summary": "tools/registry.py imports _run_async from model_tools, contradicting its own documented import chain",
+      "related_files": ["tools/registry.py", "model_tools.py"],
+      "evidence": [
+        "tools/registry.py line 124: 'from model_tools import _run_async' -- deferred import of a private symbol",
+        "tools/registry.py docstring lines 7-8 explicitly states: 'tools/registry.py (no imports from model_tools or tool files)'"
+      ],
+      "suggestion": "Move _run_async to a shared utility (e.g., agent/async_utils.py or tools/async_support.py) that sits below registry in the import chain, or have model_tools set an async runner on the registry during initialization.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "private_symbols_crossed_across_boundaries",
+      "summary": "Private functions/variables imported across package boundaries in 6+ locations",
+      "related_files": ["gateway/run.py", "run_agent.py", "hermes_cli/models.py", "hermes_cli/doctor.py", "gateway/channel_directory.py", "agent/anthropic_adapter.py", "tools/mcp_tool.py"],
+      "evidence": [
+        "gateway/run.py line 2813 imports _load_mcp_config, _servers, _lock from tools/mcp_tool",
+        "_is_oauth_token from agent/anthropic_adapter.py imported by run_agent.py (line 4726), hermes_cli/models.py (line 263), hermes_cli/doctor.py (line 501)",
+        "gateway/channel_directory.py line 120 imports _send_slack from tools/send_message_tool",
+        "Leading underscore convention signals 'internal' but these are used as de facto public API across packages"
+      ],
+      "suggestion": "Promote the most-used private symbols to public API by removing the underscore prefix (e.g., is_oauth_token, load_mcp_config). For _servers/_lock in mcp_tool, expose a proper API method (e.g., reload_mcp_config()) instead of sharing internal state.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "missing_public_api_surface"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "gateway_tools_bidirectional_coupling",
+      "summary": "gateway/ and tools/ have bidirectional import edges (13 total), blurring their boundary",
+      "related_files": ["gateway/run.py", "gateway/channel_directory.py", "gateway/platforms/telegram.py", "gateway/platforms/discord.py", "tools/send_message_tool.py", "tools/skills_tool.py"],
+      "evidence": [
+        "gateway/run.py imports from tools/ in 15+ locations (process_registry, terminal_tool, approval, checkpoint_manager, mcp_tool, vision_tools, etc.)",
+        "tools/send_message_tool.py imports from gateway/ (channel_directory, config, mirror, status)",
+        "tools/skills_tool.py line 393 imports GATEWAY_SECRET_CAPTURE_UNSUPPORTED_MESSAGE from gateway/platforms/base.py",
+        "gateway/platforms/telegram.py imports tools.vision_tools; gateway/platforms/discord.py imports tools.approval"
+      ],
+      "suggestion": "Define a shared interface or constants module for the gateway/tools boundary. Move GATEWAY_SECRET_CAPTURE_UNSUPPORTED_MESSAGE to a shared location. For tools/send_message_tool.py, inject gateway dependencies (channel resolution, config) through the tool handler interface rather than importing them directly.",
+      "confidence": "medium",
+      "impact_scope": "subsystem",
+      "fix_scope": "architectural_change"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The project grew organically with cli.py and run_agent.py as monolithic orchestrators that accumulated cross-cutting concerns, creating gravity wells that pull in imports from everywhere.",
+      "Lack of proper Python package installation (no setup.py/pyproject.toml editable install) led to pervasive sys.path.insert, which removes any static import analysis protection against boundary violations.",
+      "Configuration (CLI_CONFIG) living in the top-level CLI module rather than a dedicated shared config layer forces downstream modules to reach upward for settings."
+    ],
+    "likely_symptoms": [
+      "private_symbols_crossed_across_boundaries is partly a symptom of missing_public_api_surface"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "cross_module_architecture": {
+      "add": [
+        {
+          "header": "Clean gateway/platforms hierarchy",
+          "description": "Platform adapters import from gateway.config and gateway.session in a one-directional downward flow, while gateway.run imports platform adapters upward. This is a well-structured parent-child dependency relationship within the gateway subsystem.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Interrupt module as clean shared signaling",
+          "description": "tools/interrupt.py encapsulates a threading.Event behind set_interrupt/is_interrupted API, providing cross-cutting interrupt signaling without exposing mutable state. Called from run_agent.py, polled by 20 tool modules.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Documented import chain in tools/registry.py",
+          "description": "tools/registry.py documents its intended import hierarchy in its docstring to prevent circular imports. However, the actual code violates this contract by importing _run_async from model_tools.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Bidirectional root-hermes_cli coupling",
+          "description": "Root-level files (cli.py, run_agent.py) and hermes_cli/ have 24 bidirectional import edges. hermes_cli/callbacks.py and hermes_cli/main.py import back from root cli.py, creating a dependency cycle managed only by deferred imports.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Pervasive sys.path.insert for imports",
+          "description": "30+ production files use sys.path.insert at module scope to enable cross-package imports. This indicates the project lacks proper package installation (editable install) and relies on runtime path manipulation, removing static analysis protection against boundary violations.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Three massive hub files concentrate coupling",
+          "description": "cli.py (5162 LOC), run_agent.py (5725 LOC), and gateway/run.py (4067 LOC) collectively import from nearly every subsystem, acting as coupling magnifiers where changes in shared modules ripple through all three.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Registration-pattern cycle in tool_call_parsers",
+          "description": "environments/tool_call_parsers/__init__.py imports all parser modules which import register_parser from __init__.py. This is a standard plugin registry pattern and does not cause runtime issues.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

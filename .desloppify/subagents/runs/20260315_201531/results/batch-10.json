@@ -1,0 +1,175 @@
+{
+  "batch": "test_strategy",
+  "batch_index": 10,
+  "assessments": {
+    "test_strategy": 62.5
+  },
+  "dimension_notes": {
+    "test_strategy": {
+      "evidence": [
+        "66 of ~140 non-trivial production modules have corresponding test files (47% by file count)",
+        "gateway/run.py (4067 lines, 26 importers) has no dedicated test file; command tests exist but _handle_message pipeline is only tested once in test_session_hygiene.py with heavy mocking",
+        "tools/terminal_tool.py (1266 lines, 12 importers), tools/browser_tool.py (1899 lines), hermes_cli/main.py (3149 lines), hermes_cli/auth.py (2092 lines) have zero tests",
+        "9 test files use object.__new__(GatewayRunner) bypassing __init__, manually setting 8-12 internal attributes — fragile to any attribute addition",
+        "conftest.py provides autouse _isolate_hermes_home and 30s SIGALRM timeout — strong isolation foundation",
+        "Minimal snapshot usage (4 files) — tests are behavior-based assertions, not snapshot-dependent",
+        "tests/fakes/fake_ha_server.py provides a real HTTP+WS fake for integration testing — good pattern"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "test_strategy": {
+      "dimension_character": "The test suite has strong foundations — a well-designed conftest with isolation and timeout guards, behavior-based assertions rather than snapshot overuse, and thorough coverage of newer features like autoreply. However, several of the highest-traffic production modules (gateway/run.py, tools/terminal_tool.py, hermes_cli/main.py, hermes_cli/auth.py, all 7 environment backends) have zero or minimal test coverage, representing over 15,000 lines of untested core logic. The widespread object.__new__ pattern for constructing test doubles of GatewayRunner creates structural fragility — any attribute added to GatewayRunner requires updating 9 test files.",
+      "score_rationale": "A developer making changes to the gateway runner pipeline, terminal tool, CLI entrypoints, or environment backends would have no test safety net. While the test suite covers many leaf modules well and has good infrastructure, the gaps are in the most critical, highest-traffic files. This puts the score near the 60 anchor ('meaningful risk goes unvalidated') with some lift from the strong coverage in other areas and the solid test infrastructure."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "test_strategy",
+      "identifier": "gateway_run_untested_pipeline",
+      "summary": "gateway/run.py (4067 lines, 26 importers) lacks dedicated test coverage for its core _handle_message pipeline",
+      "related_files": ["gateway/run.py"],
+      "evidence": [
+        "gateway/run.py is the central orchestrator imported by 26 modules",
+        "Individual command tests exist (autoreply, background, title, update, etc.) but the _handle_message dispatch pipeline is only tested once in test_session_hygiene.py",
+        "No tests for the main message routing, agent launch, or error recovery paths"
+      ],
+      "suggestion": "Add a test_gateway_run.py with tests for _handle_message dispatch (command routing, agent launch flow, error paths). Consider extracting a factory method or builder for GatewayRunner to reduce test setup boilerplate.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "terminal_tool_zero_tests",
+      "summary": "tools/terminal_tool.py (1266 lines, 12 importers) has zero test coverage",
+      "related_files": ["tools/terminal_tool.py"],
+      "evidence": [
+        "No test_terminal_tool.py exists anywhere in the test tree",
+        "The terminal tool is the primary execution primitive — command execution, timeout handling, output capture"
+      ],
+      "suggestion": "Add tests/tools/test_terminal_tool.py covering command execution, timeout enforcement, output truncation, and error handling. The local environment backend can be tested without external dependencies.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "object_new_fragility",
+      "summary": "9 test files bypass GatewayRunner.__init__ via object.__new__, creating fragile coupling to internal attributes",
+      "related_files": [
+        "tests/gateway/test_autoreply_command.py",
+        "tests/gateway/test_background_command.py",
+        "tests/gateway/test_honcho_lifecycle.py",
+        "tests/gateway/test_session_hygiene.py",
+        "tests/gateway/test_run_progress_topics.py",
+        "tests/gateway/test_update_command.py",
+        "tests/gateway/test_title_command.py",
+        "tests/gateway/test_resume_command.py",
+        "tests/gateway/test_control_api.py"
+      ],
+      "evidence": [
+        "Each _make_runner() manually sets 8-12 internal attributes (adapters, _session_db, _reasoning_config, _provider_routing, _running_agents, etc.)",
+        "Adding a new attribute to GatewayRunner.__init__ breaks all 9 test files",
+        "Different test files set different subsets of attributes, making it unclear which are actually needed"
+      ],
+      "suggestion": "Extract a shared _make_runner() fixture in tests/gateway/conftest.py that constructs a properly initialized GatewayRunner with a test config. Alternatively, add a GatewayRunner.for_testing() classmethod that sets safe defaults.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "gateway_runner_test_setup"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "cli_entry_points_untested",
+      "summary": "hermes_cli/main.py (3149 lines) and hermes_cli/auth.py (2092 lines) have zero test coverage",
+      "related_files": ["hermes_cli/main.py", "hermes_cli/auth.py"],
+      "evidence": [
+        "No test files exist for these modules",
+        "hermes_cli/main.py contains the entire CLI command dispatch including session management, model selection, and conversation flow",
+        "hermes_cli/auth.py handles API key resolution, provider selection, and credential management"
+      ],
+      "suggestion": "Add tests for the critical paths: CLI command dispatch in main.py (at minimum, argument parsing and session creation) and provider resolution logic in auth.py.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "environment_backends_untested",
+      "summary": "6 of 7 tools/environments/ backends (local, docker, modal, ssh, singularity, base) have no unit tests",
+      "related_files": [
+        "tools/environments/local.py",
+        "tools/environments/docker.py",
+        "tools/environments/modal.py",
+        "tools/environments/ssh.py",
+        "tools/environments/singularity.py",
+        "tools/environments/base.py"
+      ],
+      "evidence": [
+        "Only test_daytona_environment.py and test_modal_terminal.py exist as integration tests",
+        "tools/environments/local.py is the default execution backend used by all local installations",
+        "No tests verify command sandboxing, timeout behavior, or output handling for the local backend"
+      ],
+      "suggestion": "Add tests/tools/test_local_environment.py covering execute(), timeout handling, and working directory behavior. The local backend can be tested directly without external dependencies.",
+      "confidence": "medium",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "GatewayRunner is a large class (4067 lines) that grew without a corresponding test file — tests were added per-feature rather than per-module",
+      "No shared test factory for GatewayRunner, leading each test file to independently construct partial instances"
+    ],
+    "likely_symptoms": [
+      "object_new_fragility is a symptom of gateway_run_untested_pipeline — the lack of a proper test infrastructure for GatewayRunner forces each feature test to reinvent setup"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "test_strategy": {
+      "add": [
+        {
+          "header": "Strong test isolation via conftest",
+          "description": "All tests get auto-isolated HERMES_HOME (tmp_path) and a 30-second SIGALRM timeout via autouse fixtures in conftest.py, preventing state pollution and test hangs.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Behavior-based assertions over snapshots",
+          "description": "Only 4 of ~150 test files reference snapshots. Tests assert on behavioral outcomes (status codes, method calls, state changes) rather than output snapshots, making them resilient to formatting changes.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Per-feature test pattern for gateway",
+          "description": "Gateway tests are organized per-slash-command (test_autoreply_command.py, test_background_command.py, etc.) rather than per-module. This gives good feature coverage but leaves the central _handle_message orchestration pipeline undertested.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Fake HA server for integration testing",
+          "description": "tests/fakes/fake_ha_server.py provides a real HTTP+WebSocket server mimicking the Home Assistant API, enabling realistic integration tests without external dependencies.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "object.__new__ pattern for GatewayRunner test construction",
+          "description": "9 test files bypass GatewayRunner.__init__ via object.__new__ and manually set internal attributes. This creates fragile coupling — any new attribute requires updating all 9 files.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "High-traffic modules with zero coverage",
+          "description": "gateway/run.py (4067 LOC), tools/terminal_tool.py (1266 LOC), hermes_cli/main.py (3149 LOC), and hermes_cli/auth.py (2092 LOC) are among the largest and most-imported modules but have no dedicated test files.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

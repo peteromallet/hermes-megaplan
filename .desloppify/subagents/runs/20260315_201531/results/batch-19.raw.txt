@@ -1,0 +1,144 @@
+{
+  "batch": "logic_clarity",
+  "batch_index": 19,
+  "assessments": {
+    "logic_clarity": 82.5
+  },
+  "dimension_notes": {
+    "logic_clarity": {
+      "evidence": [
+        "Four instances of identical if/else branches across production code: telegram.py:736, uninstall.py:280, skills_sync.py:204, fuzzy_match.py:403",
+        "Dead code in checkpoint_manager.py:255-260: git log result immediately overwritten, plus always-false 'if False' condition",
+        "Duplicated countdown check block in cli.py:3549-3551 where second block is always dead code",
+        "async def _send_email() in send_message_tool.py:289 performs blocking SMTP I/O via smtplib without any await",
+        "9 async functions in rl_training_tool.py never await (registered as is_async=True for tool registry contract)",
+        "No dead-code-after-return, no double-negation, no redundant boolean return patterns found in production code"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Four identical-branch if/else patterns across separate files, dead code block in checkpoint_manager.py, duplicated dead code in cli.py, and a blocking async function in send_message_tool.py together constitute recurring friction for developers tracing control flow."
+    }
+  },
+  "dimension_judgment": {
+    "logic_clarity": {
+      "dimension_character": "Control flow in this codebase is generally direct and traceable. The main agent loop, gateway dispatch, and command handling follow straightforward branching without deep nesting or tangled logic. However, scattered across multiple modules are identical if/else branches that obscure intent, a dead code block with an always-false condition in checkpoint_manager, and an async function that misleadingly wraps blocking I/O. These are isolated instances rather than a systemic pattern.",
+      "score_rationale": "The codebase earns above-80 because a developer can mostly trace control flow without surprises, and no serious patterns of always-true conditions, dead code after returns, or boolean simplification issues exist. The score is held below 85 by four separate identical-branch patterns (telegram, uninstall, skills_sync, fuzzy_match), a dead code block with always-false condition in checkpoint_manager, duplicated dead code in cli.py, and a misleading async _send_email that blocks the event loop. These are all fixable with single-edit changes but span multiple files."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "logic_clarity",
+      "identifier": "identical_branches_telegram_document",
+      "summary": "elif msg.document / else branches both assign MessageType.DOCUMENT identically",
+      "related_files": ["gateway/platforms/telegram.py"],
+      "evidence": ["Lines 736-739: elif msg.document sets msg_type = MessageType.DOCUMENT, else also sets msg_type = MessageType.DOCUMENT. The condition is meaningless."],
+      "suggestion": "Remove the elif msg.document branch and let the else handle all remaining cases as DOCUMENT, or if DOCUMENT should only apply when msg.document is truthy, change the else to assign a different type (e.g., MessageType.UNKNOWN).",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "identical_branches_uninstall",
+      "summary": "if/else in uninstall.py:280 performs identical shutil.rmtree + log_success in both branches",
+      "related_files": ["hermes_cli/uninstall.py"],
+      "evidence": ["Lines 280-286: whether project_root is inside hermes_home or not, both branches call shutil.rmtree(project_root) and log_success() identically."],
+      "suggestion": "Remove the if/else condition and unconditionally call shutil.rmtree(project_root) followed by log_success(). If there was intended to be different behavior (e.g., only removing a subdirectory), implement the actual distinction.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "identical_branches_skills_sync",
+      "summary": "if user_hash == bundled_hash / else in skills_sync.py:204 both just increment skipped",
+      "related_files": ["tools/skills_sync.py"],
+      "evidence": ["Lines 204-208: both branches of the condition increment skipped += 1 with no other difference. The condition distinguishes 'already in sync' from 'can't tell' but takes the same action."],
+      "suggestion": "Collapse to a single skipped += 1 with a comment noting the ambiguity during v1 migration. The conditional adds no value since both paths do the same thing.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "dead_code_checkpoint_manager",
+      "summary": "checkpoint_manager.py:255-260 runs git log whose result is immediately overwritten by lines 263-266",
+      "related_files": ["tools/checkpoint_manager.py"],
+      "evidence": ["Lines 255-260 call _run_git with an always-false condition ('--all' if False else 'HEAD') and assign to ok, stdout, _. Lines 263-266 immediately overwrite ok, stdout, _ with a second _run_git call. The first call is wasted work."],
+      "suggestion": "Remove lines 255-260 entirely. The second git log call (lines 263-266) is the one actually used.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "duplicated_dead_countdown_check",
+      "summary": "cli.py:3549-3551 duplicates the countdown refresh check from lines 3546-3548, second block never fires",
+      "related_files": ["cli.py"],
+      "evidence": ["Lines 3546-3548 check if now - _last_countdown_refresh >= 5.0 and if true, set _last_countdown_refresh = now. Lines 3549-3551 repeat the identical check. After the first block runs, _last_countdown_refresh equals now, so the second check always evaluates to False."],
+      "suggestion": "Remove the duplicated block at lines 3549-3551.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "async_send_email_never_awaits",
+      "summary": "async def _send_email() uses blocking smtplib, never awaits anything",
+      "related_files": ["tools/send_message_tool.py"],
+      "evidence": ["Line 289: _send_email is declared async but uses smtplib.SMTP (blocking I/O) for the entire operation. It is awaited by _send_to_platform, so it must be async, but the blocking SMTP calls will freeze the event loop."],
+      "suggestion": "Either run the blocking SMTP work in an executor (await asyncio.to_thread(_send_email_sync, ...)) or use an async SMTP library like aiosmtplib.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Copy-paste during rapid iteration leaving vestigial branches and dead code",
+      "Async declarations driven by framework/registry contract rather than actual async I/O needs"
+    ],
+    "likely_symptoms": [
+      "identical_branches_telegram_document",
+      "duplicated_dead_countdown_check"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "logic_clarity": {
+      "add": [
+        {
+          "header": "No dead code after return/raise",
+          "description": "AST scan of all production files found zero instances of unreachable code after unconditional return or raise statements at function body level, indicating disciplined control flow termination.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "No boolean simplification anti-patterns",
+          "description": "No if x: return True else: return False patterns or return True if x else False ternaries found in production code. Boolean logic is expressed directly.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Scattered identical-branch if/else statements",
+          "description": "Four separate files contain if/else constructs where both branches execute identical code, likely from iterative development where a planned distinction was never implemented.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Async-without-await in tool handlers by registry contract",
+          "description": "rl_training_tool.py declares 9 async functions that never await, registered with is_async=True. This is framework-driven (the tool dispatcher uses await) but means these functions are synchronous code wrapped in async, adding coroutine overhead without benefit.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Clean control flow in main dispatch paths",
+          "description": "The gateway message dispatch, agent conversation loop, and command handling all use straightforward if/elif chains and early returns. A developer can trace message flow without encountering surprising branches or convoluted logic.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

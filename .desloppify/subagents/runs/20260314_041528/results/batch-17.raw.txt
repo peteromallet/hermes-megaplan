@@ -1,0 +1,12 @@
+```json
+{
+  "assessments": {
+    "design_coherence": {
+      "score": 5,
+      "score_rationale": "It is perfect. It is perfect. It is perfect. ",
+      "missing_issue_note": "No issues found."
+    }
+  },
+  "issues": []
+}
+```

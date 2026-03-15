@@ -159,7 +159,7 @@ class TestDelegateTask(unittest.TestCase):
         }
         parent = _make_mock_parent()
         tasks = [{"goal": f"Task {i}"} for i in range(5)]
-        result = json.loads(delegate_task(tasks=tasks, parent_agent=parent))
+        json.loads(delegate_task(tasks=tasks, parent_agent=parent))
         # Should only run 3 tasks (MAX_CONCURRENT_CHILDREN)
         self.assertEqual(mock_run.call_count, 3)
 
@@ -171,7 +171,7 @@ class TestDelegateTask(unittest.TestCase):
             "summary": "Done", "api_calls": 1, "duration_seconds": 1.0
         }
         parent = _make_mock_parent()
-        result = json.loads(delegate_task(
+        json.loads(delegate_task(
             goal="This should be ignored",
             tasks=[{"goal": "Actual task"}],
             parent_agent=parent,

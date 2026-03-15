@@ -5,7 +5,6 @@ generation, message injection, turn counting, cap notification, and
 cleanup on /reset and /stop.
 """
 
-import asyncio
 import inspect
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -43,7 +42,6 @@ def _make_runner():
     runner._provider_routing = {}
     runner._fallback_model = None
     runner._running_agents = {}
-    runner._pending_messages = {}
     runner._pending_approvals = {}
     runner._autoreply_configs = {}
     runner._honcho_managers = {}
@@ -453,8 +451,39 @@ class TestProcessAutoreply:
         await runner._process_autoreply(source, session_key, "sess_123")
 
     @pytest.mark.asyncio
-    async def test_llm_error_is_caught(self):
-        """LLM failures are logged, not raised."""
+    async def test_handle_message_called_with_interrupt_false(self):
+        """Autoreply should queue (interrupt=False), not interrupt ongoing work."""
+        runner = _make_runner()
+        source = _make_source()
+        session_key = build_session_key(source)
+        runner._autoreply_configs[session_key] = {
+            "prompt": "test", "model": None, "max_turns": _DEFAULT_MAX_TURNS, "turn_count": 0,
+        }
+        runner.session_store.load_transcript.return_value = [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+        ]
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Follow-up question"
+
+        mock_adapter = AsyncMock()
+        mock_adapter.handle_message = AsyncMock()
+        runner.adapters[Platform.TELEGRAM] = mock_adapter
+
+        with patch("agent.auxiliary_client.async_call_llm", return_value=mock_response):
+            await runner._process_autoreply(source, session_key, "sess_123")
+
+        mock_adapter.handle_message.assert_called_once()
+        call_kwargs = mock_adapter.handle_message.call_args
+        assert call_kwargs[1].get("interrupt") is False or (
+            len(call_kwargs[0]) > 1 and call_kwargs[0][1] is False
+        ), "handle_message must be called with interrupt=False"
+
+    @pytest.mark.asyncio
+    async def test_llm_error_sends_notification(self):
+        """LLM failures send an error message to the user."""
         runner = _make_runner()
         source = _make_source()
         session_key = build_session_key(source)
@@ -464,10 +493,61 @@ class TestProcessAutoreply:
         runner.session_store.load_transcript.return_value = []
 
         mock_adapter = AsyncMock()
+        mock_adapter.send = AsyncMock(return_value=SendResult(success=True, message_id="1"))
         runner.adapters[Platform.TELEGRAM] = mock_adapter
 
         with patch("agent.auxiliary_client.async_call_llm", side_effect=RuntimeError("LLM down")):
-            # Should not raise
+            await runner._process_autoreply(source, session_key, "sess_123")
+
+        mock_adapter.send.assert_called_once()
+        content = mock_adapter.send.call_args[1]["content"]
+        assert "error" in content.lower()
+        assert "LLM down" in content
+
+    @pytest.mark.asyncio
+    async def test_llm_error_notification_includes_thread_id(self):
+        """Error notification respects thread_id for threaded platforms."""
+        runner = _make_runner()
+        source = SessionSource(
+            platform=Platform.SLACK,
+            user_id="U123",
+            chat_id="C456",
+            user_name="testuser",
+            thread_id="ts_789",
+        )
+        session_key = build_session_key(source)
+        runner._autoreply_configs[session_key] = {
+            "prompt": "test", "model": None, "max_turns": _DEFAULT_MAX_TURNS, "turn_count": 0,
+        }
+        runner.session_store.load_transcript.return_value = []
+
+        mock_adapter = AsyncMock()
+        mock_adapter.send = AsyncMock(return_value=SendResult(success=True, message_id="1"))
+        runner.adapters[Platform.SLACK] = mock_adapter
+
+        with patch("agent.auxiliary_client.async_call_llm", side_effect=RuntimeError("fail")):
+            await runner._process_autoreply(source, session_key, "sess_123")
+
+        call_kwargs = mock_adapter.send.call_args[1]
+        assert call_kwargs["metadata"] == {"thread_id": "ts_789"}
+
+    @pytest.mark.asyncio
+    async def test_llm_error_is_caught(self):
+        """LLM failures are logged, not raised (even if send also fails)."""
+        runner = _make_runner()
+        source = _make_source()
+        session_key = build_session_key(source)
+        runner._autoreply_configs[session_key] = {
+            "prompt": "test", "model": None, "max_turns": _DEFAULT_MAX_TURNS, "turn_count": 0,
+        }
+        runner.session_store.load_transcript.return_value = []
+
+        mock_adapter = AsyncMock()
+        mock_adapter.send = AsyncMock(side_effect=RuntimeError("send also broken"))
+        runner.adapters[Platform.TELEGRAM] = mock_adapter
+
+        with patch("agent.auxiliary_client.async_call_llm", side_effect=RuntimeError("LLM down")):
+            # Should not raise even if send fails
             await runner._process_autoreply(source, session_key, "sess_123")
 
     @pytest.mark.asyncio

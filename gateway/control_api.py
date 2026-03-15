@@ -2,11 +2,14 @@
 Local-only HTTP control API for the Hermes gateway.
 
 Runs alongside the gateway as a background aiohttp server on 127.0.0.1.
-Provides programmatic control over live agent sessions — model switching,
-session listing, etc.
+Provides programmatic control over live agent sessions — session listing,
+message injection, etc.
 
 External tools (e.g., desloppify) can call these endpoints to influence
 a running Hermes agent without needing direct process access.
+
+All mutations go through POST /sessions/{key}/message — inject any text
+(including /commands) as if the user typed it.
 
 Default port: 47823 (override with HERMES_CONTROL_PORT env var).
 """
@@ -20,6 +23,29 @@ from aiohttp import web
 logger = logging.getLogger(__name__)
 
 DEFAULT_PORT = 47823
+
+# Commands available via /message injection.  This list is informational —
+# the message endpoint accepts any text, but GET /commands exposes these
+# so external tools know what's available.
+AVAILABLE_COMMANDS = [
+    {"command": "/reset", "description": "Reset conversation history"},
+    {"command": "/new", "description": "Start a new conversation"},
+    {"command": "/stop", "description": "Stop the running agent"},
+    {"command": "/compact", "description": "Compress conversation context"},
+    {"command": "/compress", "description": "Compress conversation context"},
+    {"command": "/status", "description": "Show session info"},
+    {"command": "/model <provider:model>", "description": "Switch model"},
+    {"command": "/personality <name>", "description": "Switch personality"},
+    {"command": "/autoreply <instructions>", "description": "Enable auto-reply loop"},
+    {"command": "/autoreply off", "description": "Disable auto-reply loop"},
+    {"command": "/reasoning <level>", "description": "Set reasoning effort"},
+    {"command": "/rollback [number]", "description": "List or restore checkpoints"},
+    {"command": "/background <prompt>", "description": "Run prompt in background session"},
+    {"command": "/undo", "description": "Undo last assistant response"},
+    {"command": "/retry", "description": "Retry last message"},
+    {"command": "/usage", "description": "Show token usage"},
+    {"command": "/help", "description": "List commands"},
+]
 
 
 def _get_port() -> int:
@@ -44,11 +70,11 @@ class ControlAPI:
         self._site = None
 
     def _setup_routes(self):
+        self.app.router.add_get("/health", self.health)
         self.app.router.add_get("/sessions", self.list_sessions)
         self.app.router.add_get("/sessions/{key}", self.get_session)
-        self.app.router.add_post("/sessions/{key}/switch-model", self.switch_model)
-        self.app.router.add_post("/sessions/{key}/control", self.control)
-        self.app.router.add_get("/health", self.health)
+        self.app.router.add_get("/commands", self.list_commands)
+        self.app.router.add_post("/sessions/{key}/message", self.send_message)
 
     # ── Helpers ─────────────────────────────────────────────────────────
 
@@ -69,14 +95,15 @@ class ControlAPI:
     async def list_sessions(self, request: web.Request) -> web.Response:
         """List all sessions, marking which have a live (running) agent."""
         sessions = []
-        # Running agents (actively processing a message)
         for key, agent in self.runner._running_agents.items():
-            sessions.append({
+            entry = {
                 "session_key": key,
                 "status": "running",
                 "model": getattr(agent, "model", None),
                 "provider": getattr(agent, "provider", None),
-            })
+                **self.runner.get_session_info(key),
+            }
+            sessions.append(entry)
         return _json_response({"sessions": sessions})
 
     async def get_session(self, request: web.Request) -> web.Response:
@@ -92,14 +119,21 @@ class ControlAPI:
             "status": "running",
             "model": getattr(agent, "model", None),
             "provider": getattr(agent, "provider", None),
+            **self.runner.get_session_info(key),
         })
 
-    async def switch_model(self, request: web.Request) -> web.Response:
-        """Switch the model on a live agent session.
+    async def list_commands(self, request: web.Request) -> web.Response:
+        """List available slash commands that can be sent via /message."""
+        return _json_response({"commands": AVAILABLE_COMMANDS})
 
-        POST body: {"provider": "...", "model": "...", "reason": "..."}
+    async def send_message(self, request: web.Request) -> web.Response:
+        """Inject a message (or /command) into a session.
 
-        If session_key is "_any", switches the first running agent found.
+        POST body: {"text": "...", "mode": "interrupt"|"queue"}
+
+        Modes:
+        - interrupt (default): cancel current agent run, process this message
+        - queue: let current run finish, then process this message next
         """
         key = request.match_info["key"]
 
@@ -108,65 +142,31 @@ class ControlAPI:
         except Exception:
             return _json_response({"error": "Invalid JSON body"}, status=400)
 
-        provider = body.get("provider", "").strip()
-        model = body.get("model", "").strip()
+        text = body.get("text", "").strip()
+        if not text:
+            return _json_response({"error": "'text' is required"}, status=400)
 
-        if not provider or not model:
+        mode = body.get("mode", "interrupt")
+        if mode not in ("interrupt", "queue"):
             return _json_response(
-                {"error": "Both 'provider' and 'model' are required"},
+                {"error": f"Invalid mode '{mode}', must be 'interrupt' or 'queue'"},
                 status=400,
             )
 
-        key, agent = self._resolve_agent(key)
-        if not agent:
-            return _json_response(
-                {"error": f"No running agent for '{key}'"},
-                status=404,
-            )
-
-        reason = body.get("reason", "external control API")
         logger.info(
-            "Control API: switch_model session=%s → %s/%s (reason: %s)",
-            key, provider, model, reason,
+            "Control API: send_message session=%s mode=%s text=%s",
+            key, mode, text[:80],
         )
 
-        result = agent.execute_control("switch_model", provider=provider, model=model)
-        result["target"] = {"provider": provider, "model": model}
-        status = 200 if result.get("success") else 500
-        return _json_response(result, status=status)
-
-    async def control(self, request: web.Request) -> web.Response:
-        """Generic control endpoint — enqueue any registered command.
-
-        POST body: {"command": "...", ...params}
-        """
-        key = request.match_info["key"]
-
         try:
-            body = await request.json()
-        except Exception:
-            return _json_response({"error": "Invalid JSON body"}, status=400)
+            result = self.runner.inject_message(key, text, interrupt=(mode != "queue"))
+            # await if coroutine (GatewayRunner is async, CLI shim is sync)
+            if hasattr(result, "__await__"):
+                await result
+        except LookupError as e:
+            return _json_response({"error": str(e)}, status=404)
 
-        command = body.get("command", "").strip()
-        if not command:
-            return _json_response({"error": "'command' is required"}, status=400)
-
-        key, agent = self._resolve_agent(key)
-        if agent is None:
-            return _json_response({"error": f"No running agent for '{key}'"}, status=404)
-
-        # Validate against externally-exposed commands only
-        available = getattr(agent, 'external_control_commands', [])
-        if command not in available:
-            return _json_response(
-                {"error": f"Unknown command: '{command}'", "available": available},
-                status=400,
-            )
-
-        params = {k: v for k, v in body.items() if k != "command"}
-        result = agent.execute_control(command, **params)
-        status = 200 if result.get("success") else 500
-        return _json_response(result, status=status)
+        return _json_response({"success": True, "message": "Message submitted"})
 
     # ── Lifecycle ────────────────────────────────────────────────────────
 
@@ -178,7 +178,6 @@ class ControlAPI:
         try:
             await self._site.start()
             logger.info("Control API listening on http://127.0.0.1:%d", port)
-            # Write port file so external tools can discover us
             self._write_port_file(port)
         except OSError as e:
             logger.warning("Control API failed to bind port %d: %s", port, e)

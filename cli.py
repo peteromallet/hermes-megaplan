@@ -1459,10 +1459,30 @@ class HermesCLI:
 
             # Lightweight shim so ControlAPI can find our agent
             class _CLIRunner:
-                def __init__(self, agent, session_id):
+                def __init__(self, agent, session_id, cli_instance):
                     self._running_agents = {session_id: agent}
+                    self._cli = cli_instance
 
-            shim = _CLIRunner(self.agent, self.session_id)
+                def inject_message(self, key: str, text: str, *, interrupt: bool = True):
+                    """Inject a message into the CLI's input queues."""
+                    if interrupt and self._cli._agent_running:
+                        self._cli._interrupt_queue.put(text)
+                    else:
+                        self._cli._pending_input.put(text)
+
+                def get_session_info(self, key: str) -> dict:
+                    """Return session state for the control API."""
+                    cfg = getattr(self._cli, "_autoreply_config", None)
+                    return {
+                        "autoreply": {
+                            "enabled": cfg is not None,
+                            "prompt": cfg.get("prompt", "") if cfg else None,
+                            "max_turns": cfg.get("max_turns", 0) if cfg else None,
+                            "turn_count": cfg.get("turn_count", 0) if cfg else None,
+                        },
+                    }
+
+            shim = _CLIRunner(self.agent, self.session_id, self)
             api = ControlAPI(shim)
 
             def _run():
@@ -2561,7 +2581,7 @@ class HermesCLI:
         
         try:
             config = load_gateway_config()
-            connected = config.get_connected_platforms()
+            config.get_connected_platforms()
             
             print("  Messaging Platform Configuration:")
             print("  " + "-" * 55)
@@ -2889,7 +2909,6 @@ class HermesCLI:
                 qcmd = quick_commands[base_cmd.lstrip("/")]
                 if qcmd.get("type") == "exec":
                     import subprocess
-                    import shutil
                     exec_cmd = qcmd.get("command", "")
                     if exec_cmd:
                         try:
@@ -2967,7 +2986,7 @@ class HermesCLI:
             limit = "forever" if new_config["max_turns"] == 0 else f"max {new_config['max_turns']} turns"
             _cprint(f"🔄 Auto-reply enabled — {mode}({limit}).")
             _cprint(f"  {label}: {prompt_preview}")
-            _cprint(f"  Send a message to start the loop. Use /autoreply off to stop.")
+            _cprint("  Send a message to start the loop. Use /autoreply off to stop.")
 
     def _generate_autoreply_text(self) -> Optional[str]:
         """Generate the next auto-reply text, or None if done."""
@@ -4558,7 +4577,7 @@ class HermesCLI:
             title = '🔐 Sudo Password Required'
             body = 'Enter password below (hidden), or press Enter to skip'
             box_width = _panel_box_width(title, [body])
-            inner = max(0, box_width - 2)
+            max(0, box_width - 2)
             lines = []
             lines.append(('class:sudo-border', '╭─ '))
             lines.append(('class:sudo-title', title))

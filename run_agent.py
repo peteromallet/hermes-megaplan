@@ -3204,7 +3204,7 @@ class AIAgent:
                         args = json.loads(tc.function.arguments)
                         flush_target = args.get("target", "memory")
                         from tools.memory_tool import memory_tool as _memory_tool
-                        result = _memory_tool(
+                        _memory_tool(
                             action=args.get("action"),
                             target=flush_target,
                             content=args.get("content"),

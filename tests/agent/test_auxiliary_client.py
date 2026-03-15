@@ -118,7 +118,7 @@ class TestGetTextAuxiliaryClient:
 
     def test_nous_takes_priority_over_codex(self, monkeypatch, codex_auth_dir):
         with patch("agent.auxiliary_client._read_nous_auth") as mock_nous, \
-             patch("agent.auxiliary_client.OpenAI") as mock_openai:
+             patch("agent.auxiliary_client.OpenAI"):
             mock_nous.return_value = {"access_token": "nous-tok"}
             client, model = get_text_auxiliary_client()
         assert model == "gemini-3-flash"
@@ -140,7 +140,7 @@ class TestGetTextAuxiliaryClient:
 
     def test_codex_fallback_when_nothing_else(self, codex_auth_dir):
         with patch("agent.auxiliary_client._read_nous_auth", return_value=None), \
-             patch("agent.auxiliary_client.OpenAI") as mock_openai:
+             patch("agent.auxiliary_client.OpenAI"):
             client, model = get_text_auxiliary_client()
         assert model == "gpt-5.3-codex"
         # Returns a CodexAuxiliaryClient wrapper, not a raw OpenAI client
@@ -182,13 +182,13 @@ class TestVisionClientFallback:
         monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:1234/v1")
         monkeypatch.setenv("OPENAI_API_KEY", "local-key")
         with patch("agent.auxiliary_client._read_nous_auth", return_value=None), \
-             patch("agent.auxiliary_client.OpenAI") as mock_openai:
+             patch("agent.auxiliary_client.OpenAI"):
             client, model = get_vision_auxiliary_client()
         assert client is not None  # Custom endpoint picked up as fallback
 
     def test_vision_uses_openrouter_when_available(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "or-key")
-        with patch("agent.auxiliary_client.OpenAI") as mock_openai:
+        with patch("agent.auxiliary_client.OpenAI"):
             client, model = get_vision_auxiliary_client()
         assert model == "google/gemini-3-flash-preview"
         assert client is not None
@@ -207,7 +207,7 @@ class TestVisionClientFallback:
         monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:1234/v1")
         monkeypatch.setenv("OPENAI_API_KEY", "local-key")
         with patch("agent.auxiliary_client._read_nous_auth", return_value=None), \
-             patch("agent.auxiliary_client.OpenAI") as mock_openai:
+             patch("agent.auxiliary_client.OpenAI"):
             client, model = get_vision_auxiliary_client()
         assert client is not None
         assert model == "gpt-4o-mini"
@@ -274,7 +274,7 @@ class TestResolveForcedProvider:
 
     def test_forced_openrouter(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "or-key")
-        with patch("agent.auxiliary_client.OpenAI") as mock_openai:
+        with patch("agent.auxiliary_client.OpenAI"):
             client, model = _resolve_forced_provider("openrouter")
         assert model == "google/gemini-3-flash-preview"
         assert client is not None
@@ -303,7 +303,7 @@ class TestResolveForcedProvider:
         monkeypatch.setenv("OPENAI_BASE_URL", "http://local:8080/v1")
         monkeypatch.setenv("OPENAI_API_KEY", "local-key")
         with patch("agent.auxiliary_client._read_nous_auth", return_value=None), \
-             patch("agent.auxiliary_client.OpenAI") as mock_openai:
+             patch("agent.auxiliary_client.OpenAI"):
             client, model = _resolve_forced_provider("main")
         assert model == "gpt-4o-mini"
 
@@ -313,7 +313,7 @@ class TestResolveForcedProvider:
         monkeypatch.setenv("OPENAI_BASE_URL", "http://local:8080/v1")
         monkeypatch.setenv("OPENAI_API_KEY", "local-key")
         with patch("agent.auxiliary_client._read_nous_auth", return_value=None), \
-             patch("agent.auxiliary_client.OpenAI") as mock_openai:
+             patch("agent.auxiliary_client.OpenAI"):
             client, model = _resolve_forced_provider("main")
         # Should use custom endpoint, not OpenRouter
         assert model == "gpt-4o-mini"

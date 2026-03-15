@@ -421,7 +421,7 @@ def main(
                 
                 # Run the agent
                 print("\n" + "=" * 60)
-                response = agent.run_conversation(user_input)
+                agent.run_conversation(user_input)
                 print("\n" + "=" * 60)
                 
             except KeyboardInterrupt:
@@ -438,7 +438,7 @@ def main(
         print("-" * 40)
         
         try:
-            response = agent.run_conversation(task)
+            agent.run_conversation(task)
             print("\n" + "=" * 60)
             print("✅ Task completed")
         except KeyboardInterrupt:

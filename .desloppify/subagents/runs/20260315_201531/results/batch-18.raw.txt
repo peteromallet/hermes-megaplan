@@ -1,0 +1,100 @@
+{
+  "batch": "contract_coherence",
+  "batch_index": 18,
+  "assessments": {
+    "contract_coherence": 74.5
+  },
+  "dimension_notes": {
+    "contract_coherence": {
+      "evidence": [
+        "get_toolset_info() in toolsets.py (line 446) annotates return as Dict[str, Any] but returns None on line 458 when toolset is not found. Callers could hit AttributeError.",
+        "_deliver_to_platform() in gateway/delivery.py (line 264) annotates return as Dict[str, Any] but returns SendResult (a dataclass from base.py). The caller deliver() nests this under 'result' key, creating a dict containing a non-dict object.",
+        "get_image_cache_dir(), get_audio_cache_dir(), get_document_cache_dir() in gateway/platforms/base.py are named as getters but mutate filesystem by creating directories. The side effect is hidden behind a getter name.",
+        "detect_dangerous_command() in tools/approval.py uses bare 'tuple' annotation losing the (bool, Optional[str], Optional[str]) contract that the docstring describes.",
+        "Consistent tool handler return contracts: all MemoryStore methods (add, replace, remove) return Dict[str, Any] with documented success/error keys; tool handlers consistently return JSON strings with error envelopes.",
+        "Clean dataclass contracts: SessionSource, SessionEntry, MessageEvent, SendResult, DeliveryTarget all have consistent to_dict/from_dict roundtripping with matching type annotations.",
+        "HermesControl client methods consistently annotate -> dict and always return dict from _request, including error cases."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": null
+    }
+  },
+  "dimension_judgment": {
+    "contract_coherence": {
+      "dimension_character": "The codebase demonstrates strong contract discipline in its core patterns: tool handlers use a consistent JSON error envelope, dataclass serialization follows uniform to_dict/from_dict conventions, and the MemoryStore API reliably returns success/error dicts. However, there are several return-type annotation lies where the declared type does not cover all return paths (get_toolset_info returning None, _deliver_to_platform returning SendResult instead of Dict), and a cluster of cache-directory getters that silently create directories as a side effect. These issues are localized rather than systemic.",
+      "score_rationale": "The positive patterns are pervasive and well-maintained -- the tool handler contract, dataclass serialization pattern, and error envelope convention are consistent across 20+ files. The defects (3 return-type lies, 3 getter-with-side-effects) are real but localized to specific modules. This puts the codebase solidly above the 60-mark (no significant drag on developers) but below 80 (the type annotation lies in toolsets.py and delivery.py could cause runtime surprises). Score of 74.5 reflects real but non-systemic contract violations against an otherwise disciplined backdrop."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "contract_coherence",
+      "identifier": "toolset_info_returns_none",
+      "summary": "get_toolset_info() annotated as -> Dict[str, Any] but returns None when toolset not found",
+      "related_files": ["toolsets.py"],
+      "evidence": ["Line 446 declares -> Dict[str, Any], line 458 returns None. Callers expecting a dict will hit AttributeError on key access."],
+      "suggestion": "Change return annotation to Optional[Dict[str, Any]] to match the actual behavior, consistent with get_toolset() on line 300 which correctly uses Optional.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "deliver_returns_sendresult_not_dict",
+      "summary": "_deliver_to_platform annotated -> Dict[str, Any] but returns SendResult dataclass",
+      "related_files": ["gateway/delivery.py", "gateway/platforms/base.py"],
+      "evidence": ["Line 269 declares -> Dict[str, Any]. Line 292 returns await adapter.send() which returns SendResult (a dataclass with success, message_id, error, raw_response fields). The caller deliver() nests this under 'result' key at line 199, creating {'success': True, 'result': <SendResult object>}."],
+      "suggestion": "Either change the annotation to -> SendResult, or convert the return value: return a dict like {'success': result.success, 'message_id': result.message_id} from _deliver_to_platform.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "cache_getters_mutate_filesystem",
+      "summary": "get_image_cache_dir, get_audio_cache_dir, get_document_cache_dir create directories as a side effect",
+      "related_files": ["gateway/platforms/base.py"],
+      "evidence": ["get_image_cache_dir() (line 49), get_audio_cache_dir() (line 131), get_document_cache_dir() (line 199) all call .mkdir(parents=True, exist_ok=True). The 'get_' prefix implies a pure read, but these mutate the filesystem on every call."],
+      "suggestion": "Rename to ensure_image_cache_dir() / ensure_audio_cache_dir() / ensure_document_cache_dir() to signal the side effect. Alternatively, move the mkdir to module init or a separate ensure_cache_dirs() function.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": ["The codebase grew from a prototype where return annotations were added after the fact without full path analysis, leading to localized annotation-reality gaps."],
+    "likely_symptoms": [],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "contract_coherence": {
+      "add": [
+        {
+          "header": "Consistent tool handler error envelope",
+          "description": "All tool handlers (30+) return JSON strings with either {success: true, ...} or {error: '...'} pattern. This convention is followed uniformly across memory_tool, file_tools, browser_tool, terminal_tool, and others, giving callers a reliable contract.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Uniform dataclass serialization contract",
+          "description": "SessionSource, SessionEntry, SessionContext, HomeChannel, PlatformConfig, and SessionResetPolicy all implement to_dict/from_dict classmethods with matching type annotations. Round-trip fidelity is maintained across all six dataclasses.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Return type annotations in toolsets.py inconsistent",
+          "description": "get_toolset_info returns Optional[Dict] but is annotated as Dict. get_toolset correctly uses Optional. The inconsistency suggests annotations were added piecemeal rather than reviewed systematically.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Cache dir getters have hidden mkdir side effects",
+          "description": "Three get_*_cache_dir() functions in base.py create directories on every call. The 'get' prefix hides the mutation, though the side effect is idempotent and harmless in practice.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

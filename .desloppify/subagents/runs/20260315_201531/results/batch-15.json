@@ -1,0 +1,156 @@
+{
+  "batch": "package_organization",
+  "batch_index": 15,
+  "assessments": {
+    "package_organization": 72.5
+  },
+  "dimension_notes": {
+    "package_organization": {
+      "evidence": [
+        "tools/ contains 39 files in a flat directory with mixed concerns: tool implementations, infrastructure (registry, interrupt, process_registry, approval, debug_helpers, fuzzy_match, patch_parser, openrouter_client), and a 5-file skills cluster (skills_tool, skills_hub, skills_sync, skills_guard, skill_manager_tool)",
+        "hermes_cli/ contains 26 files flat with no subdirectories, mixing CLI subcommands, configuration, display/theming, and auth infrastructure",
+        "4 peripheral root files (batch_runner.py fan_in=2, trajectory_compressor.py fan_in=2, mini_swe_runner.py fan_in=0, rl_cli.py fan_in=0) share a batch/training pipeline concern but live scattered at root",
+        "toolset_distributions.py (fan_in=3) is consumed only by batch_runner.py and environments/ — co-locatable with batch pipeline files",
+        "Core root files (run_agent.py, cli.py, model_tools.py, hermes_constants.py, hermes_state.py, toolsets.py) have fan_in >= 9 and are legitimately root-level",
+        "gateway/ and gateway/platforms/ have clean layered structure with appropriate subdirectory separation",
+        "Coupling matrix shows tools/ imports from 7 different directories and is imported by 10 — high coupling breadth but consistent with its 'shared tools' role"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "package_organization": {
+      "dimension_character": "The top-level package decomposition is sound — agent/, gateway/, hermes_cli/, tools/, and supporting packages map clearly to distinct domains, and gateway/platforms/ demonstrates good subdirectory design. However, the two largest production packages (tools/ at 39 files, hermes_cli/ at 26 files) are flat with mixed concerns, and the root directory accumulates peripheral scripts that share themes but are not grouped. A developer familiar with the codebase navigates well at the top level but must scan long file lists within tools/ and hermes_cli/.",
+      "score_rationale": "The clear top-level domain separation and correct placement of high-fan-in core files pull the score above the 60 threshold. However, the tools/ flat directory (39 files with identifiable subgroups like skills_*, infrastructure, and media tools), hermes_cli/ flat directory (26 files mixing subcommands, config, and display), and root-level stragglers represent recurring structural mismatches that place this firmly in the 70-range — a developer encounters enough placement friction to question where to find or add things within the two largest packages."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "package_organization",
+      "identifier": "tools_flat_directory_overload",
+      "summary": "tools/ has 39 files in a flat directory with at least 3 identifiable concern clusters",
+      "related_files": [
+        "tools/skills_tool.py",
+        "tools/skills_hub.py",
+        "tools/skills_sync.py",
+        "tools/skills_guard.py",
+        "tools/skill_manager_tool.py",
+        "tools/registry.py",
+        "tools/interrupt.py",
+        "tools/process_registry.py",
+        "tools/approval.py",
+        "tools/openrouter_client.py"
+      ],
+      "evidence": [
+        "39 Python files in tools/ with only 1 subdirectory (environments/)",
+        "5 skills-related files share the skills_/skill_ prefix and form a tightly coupled cluster",
+        "Infrastructure files (registry.py, interrupt.py, process_registry.py, approval.py, debug_helpers.py, fuzzy_match.py, patch_parser.py, openrouter_client.py) are not tool implementations but support code mixed alongside actual tools"
+      ],
+      "suggestion": "Phase 1: Move the 5 skills_*/skill_* files into tools/skills/ subdirectory since they are tightly coupled and share a naming prefix. Phase 2: Move infrastructure files (registry.py, interrupt.py, process_registry.py, approval.py, debug_helpers.py, fuzzy_match.py, patch_parser.py, openrouter_client.py) into tools/infra/ or tools/_internal/. After each move, run `python -c 'import tools'` and `pytest tests/tools/ -x` to validate imports.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "package_organization",
+      "identifier": "hermes_cli_flat_directory",
+      "summary": "hermes_cli/ has 26 files in a flat directory mixing CLI subcommands, config, display, and auth",
+      "related_files": [
+        "hermes_cli/auth.py",
+        "hermes_cli/runtime_provider.py",
+        "hermes_cli/banner.py",
+        "hermes_cli/colors.py",
+        "hermes_cli/skin_engine.py",
+        "hermes_cli/curses_ui.py",
+        "hermes_cli/config.py",
+        "hermes_cli/tools_config.py",
+        "hermes_cli/skills_config.py"
+      ],
+      "evidence": [
+        "26 Python files in hermes_cli/ with 0 subdirectories",
+        "Display/theming cluster: banner.py, colors.py, skin_engine.py, curses_ui.py (4 files)",
+        "Config cluster: config.py (32 importers — god module), tools_config.py, skills_config.py (3 files)",
+        "Auth cluster: auth.py (19 importers, 2092 LOC), runtime_provider.py, codex_models.py (3 files)"
+      ],
+      "suggestion": "The strongest candidate is grouping display files (banner.py, colors.py, skin_engine.py, curses_ui.py) into hermes_cli/display/ — they are cohesive and have moderate coupling to the rest of hermes_cli. Auth files (auth.py, runtime_provider.py, codex_models.py) could form hermes_cli/auth/. Move incrementally, updating imports and running `pytest tests/hermes_cli/ -x` after each batch.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "package_organization",
+      "identifier": "root_pipeline_stragglers",
+      "summary": "4 peripheral root files (batch_runner, trajectory_compressor, mini_swe_runner, rl_cli) share a pipeline concern",
+      "related_files": [
+        "batch_runner.py",
+        "trajectory_compressor.py",
+        "mini_swe_runner.py",
+        "rl_cli.py",
+        "toolset_distributions.py"
+      ],
+      "evidence": [
+        "batch_runner.py (fan_in=2), trajectory_compressor.py (fan_in=2), mini_swe_runner.py (fan_in=0), rl_cli.py (fan_in=0) are all peripheral (fan_in < 5)",
+        "toolset_distributions.py (fan_in=3) is consumed primarily by batch_runner.py",
+        "All 5 files relate to batch processing, training data pipelines, or specialized runners — a coherent 'pipeline' concern",
+        "mini_swe_runner.py and rl_cli.py have zero importers — they are standalone entry points that clutter the root"
+      ],
+      "suggestion": "Create a pipeline/ (or runners/) package and move batch_runner.py, trajectory_compressor.py, mini_swe_runner.py, rl_cli.py, and toolset_distributions.py into it. Update the 4 external importers (scripts/sample_and_compress.py, environments/hermes_base_env.py, and 2 test files). Validate with `pytest tests/test_batch_runner_checkpoint.py tests/test_trajectory_compressor.py tests/test_toolset_distributions.py -x`.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Organic growth pattern: tools were added one-at-a-time to tools/ without periodic reorganization, accumulating 39 flat files",
+      "CLI features accreted in hermes_cli/ without subdirectory boundaries as the project expanded from simple CLI to full platform",
+      "Pipeline/runner scripts were added at root for convenience (direct python invocation) rather than in a dedicated package"
+    ],
+    "likely_symptoms": [],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "package_organization": {
+      "add": [
+        {
+          "header": "Sound top-level domain decomposition",
+          "description": "The top-level packages (agent/, gateway/, hermes_cli/, tools/, honcho_integration/, cron/, environments/) map cleanly to distinct functional domains with minimal ambiguity. A developer can predict which top-level package owns a given concern.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Gateway platform adapter layout",
+          "description": "gateway/platforms/ demonstrates good subdirectory design — one file per platform adapter plus a base.py abstract class, with clean coupling back to gateway/ parent.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Core root files are legitimately core",
+          "description": "run_agent.py (fan_in=24), cli.py (fan_in=15), model_tools.py (fan_in=14), hermes_constants.py (fan_in=11), hermes_state.py (fan_in=11), toolsets.py (fan_in=9) all exceed the fan_in >= 5 threshold and are imported across multiple subdirectories — they belong at root.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "tools/ flat directory with 39 files",
+          "description": "The tools/ directory has grown to 39 files with identifiable subgroups (5 skills files, 8+ infrastructure files) mixed alongside tool implementations, making navigation harder than necessary for its size.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "hermes_cli/ flat directory with 26 files",
+          "description": "hermes_cli/ has 26 files mixing CLI subcommands, configuration management, display/theming, and auth infrastructure in a single flat directory with no subdirectories.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Root-level pipeline script sprawl",
+          "description": "Five peripheral root files (batch_runner, trajectory_compressor, mini_swe_runner, rl_cli, toolset_distributions) share a batch/training pipeline concern but live at the root with low fan-in (0-3), diluting root-level navigability.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

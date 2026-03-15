@@ -502,7 +502,7 @@ def main():
         print(f"  ✓ Created tag {tag_name}")
 
         # Push
-        push_result = git("push", "origin", "HEAD", "--tags")
+        git("push", "origin", "HEAD", "--tags")
         print("  ✓ Pushed to origin")
 
         # Create GitHub release

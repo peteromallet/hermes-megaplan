@@ -320,13 +320,12 @@ class TestErrorLoggingExcInfo:
                 patch("tools.vision_tools.async_call_llm", new_callable=AsyncMock, return_value=mock_response),
             ):
                 # Make unlink fail to trigger cleanup warning
-                original_unlink = Path.unlink
 
                 def failing_unlink(self, *args, **kwargs):
                     raise PermissionError("no permission")
 
                 with patch.object(Path, "unlink", failing_unlink):
-                    result = await vision_analyze_tool(
+                    await vision_analyze_tool(
                         "https://example.com/tempimg.jpg", "describe", "test/model"
                     )
 

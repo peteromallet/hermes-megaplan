@@ -19,8 +19,6 @@ never the child's intermediate tool calls or reasoning.
 import json
 import logging
 logger = logging.getLogger(__name__)
-import sys
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional

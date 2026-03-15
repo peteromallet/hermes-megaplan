@@ -1,0 +1,143 @@
+{
+  "batch": "design_coherence",
+  "batch_index": 17,
+  "assessments": {
+    "design_coherence": 62.5
+  },
+  "dimension_notes": {
+    "design_coherence": {
+      "evidence": [
+        "AIAgent.__init__ accepts 40+ parameters spanning 6 distinct responsibility groups (LLM config, provider routing, callbacks, honcho integration, session management, logging config)",
+        "run_conversation() is ~1470 lines (lines 4024-5495 of run_agent.py) handling system prompt resolution, preflight compression, Honcho integration, the main tool-calling loop, API call construction, error recovery, and session persistence",
+        "gateway/run.py loads and parses ~/.hermes/config.yaml 11 separate times; 7 _load_* static methods each independently open, read, and yaml.safe_load the same file",
+        "gateway/platforms/base.py contains three nearly identical media cache implementations (image/audio/document) with copy-pasted get_dir, cache_from_bytes, cache_from_url, cleanup functions",
+        "Positive: tool_call_parsers/ uses a clean registry pattern with @register_parser decorator and ABC base class",
+        "Positive: tools/registry.py provides a well-designed central registry decoupling tool declaration from usage",
+        "Positive: agent/ package cleanly extracts prompt_builder, context_compressor, display, trajectory, and model_metadata into focused modules"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": null,
+      "sub_axes": {}
+    }
+  },
+  "dimension_judgment": {
+    "design_coherence": {
+      "dimension_character": "The codebase shows a split personality on design coherence. Peripheral subsystems (tool registry, tool call parsers, agent submodules, platform adapters) demonstrate disciplined extraction and data-driven patterns. But the three central orchestration files (run_agent.py at 5725 LOC, cli.py at 5162 LOC, gateway/run.py at 4067 LOC) concentrate too many responsibilities and contain repeated structural patterns -- especially the config.yaml loading duplication and the monster run_conversation method. The gateway's media cache triplication in base.py is another clear example of structural repetition that should be abstracted.",
+      "score_rationale": "The positive patterns in the tool/parser registries and agent submodule extraction show the team knows how to do focused design, but the three largest files in the codebase all suffer from significant multi-responsibility accumulation. run_conversation at ~1470 lines is a genuine monster function mixing 5+ distinct concerns. The 11 independent config.yaml parses in one file and the triplicated cache code are textbook examples of patterns the dimension rubric targets. These issues pull the score well below 80 (solid-but-uneven) into the 60s territory where design decisions routinely obscure intent in the core orchestration layer."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "design_coherence",
+      "identifier": "run_conversation_monster",
+      "summary": "run_conversation() is ~1470 lines with 5+ distinct responsibilities in one method body",
+      "related_files": ["run_agent.py"],
+      "evidence": [
+        "Lines 4024-5495: system prompt resolution (4146-4175), preflight compression (4185-4222), Honcho integration (4108-4126), main tool-calling loop (4239-5480), API call construction (4282-4400), response assembly and error recovery interspersed throughout, session persistence (multiple points)"
+      ],
+      "suggestion": "Extract the major phases into focused private methods: _resolve_system_prompt(), _preflight_compress(), _prepare_api_call(messages), _handle_api_response(response, messages). The main loop body should orchestrate these phases, not implement them inline.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "orchestration_monolith"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "gateway_config_yaml_reload",
+      "summary": "gateway/run.py opens and parses config.yaml 11 times independently across 7 _load_* methods",
+      "related_files": ["gateway/run.py"],
+      "evidence": [
+        "7 static methods (_load_prefill_messages, _load_ephemeral_system_prompt, _load_reasoning_config, _load_show_reasoning, _load_background_notifications_mode, _load_provider_routing, _load_fallback_model) each independently do: import yaml; open config.yaml; yaml.safe_load(f). Additional inline loads at lines 1186-1188, 1772, 1863, etc."
+      ],
+      "suggestion": "Load config.yaml once in __init__ into a dict, then have each _load_* method extract its section from the pre-loaded dict. A single _load_config_yaml() -> dict method replaces 7+ file opens with 7 dict lookups.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "repeated_config_loading"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "media_cache_triplication",
+      "summary": "Three nearly identical media cache implementations (image/audio/document) in gateway/platforms/base.py",
+      "related_files": ["gateway/platforms/base.py"],
+      "evidence": [
+        "get_image_cache_dir/get_audio_cache_dir/get_document_cache_dir are structurally identical (mkdir + return dir). cache_image_from_bytes/cache_audio_from_bytes are structurally identical (uuid prefix + write_bytes). cache_image_from_url/cache_audio_from_url are structurally identical (httpx download + call from_bytes). cleanup_image_cache/cleanup_document_cache are structurally identical (iterate + unlink by age)."
+      ],
+      "suggestion": "Extract a MediaCache(base_dir, prefix, default_ext) class or a set of generic functions parameterized by directory and prefix. The three media types become three instances: image_cache = MediaCache('image_cache', 'img', '.jpg'). This eliminates ~100 lines of copy-paste.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "structural_duplication"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "aiagent_init_parameter_sprawl",
+      "summary": "AIAgent.__init__ accepts 40+ parameters spanning 6 distinct responsibility groups",
+      "related_files": ["run_agent.py"],
+      "evidence": [
+        "Lines 213-257: parameters include LLM config (model, max_iterations, max_tokens, reasoning_config), provider routing (providers_allowed/ignored/order/sort/require_parameters/data_collection -- 6 params), callbacks (tool_progress/thinking/reasoning/clarify/step -- 5 params), Honcho (honcho_session_key/manager/config -- 3 params), session (session_id/session_db/pass_session_id), logging (verbose_logging/quiet_mode/log_prefix/log_prefix_chars)"
+      ],
+      "suggestion": "The provider routing parameters (providers_allowed, providers_ignored, providers_order, provider_sort, provider_require_parameters, provider_data_collection) form a natural group that could become a ProviderRouting dataclass -- this group has independent semantic meaning as OpenRouter provider preferences. Similarly, Honcho params (honcho_session_key, honcho_manager, honcho_config) are a cohesive unit. Do not group the remaining params -- they are individually meaningful.",
+      "confidence": "medium",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "orchestration_monolith"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "command_dispatch_chain",
+      "summary": "gateway/run.py _handle_message uses a 60-line if/elif chain for command dispatch despite having a _known_commands set",
+      "related_files": ["gateway/run.py"],
+      "evidence": [
+        "Lines 983-1044: 21 sequential if-checks of the form 'if command == X: return await self._handle_X_command(event)'. The _known_commands set at line 970 already enumerates these commands for hook emission but is not used for dispatch."
+      ],
+      "suggestion": "Replace the if/elif chain with a dispatch dict mapping command name to handler method: _COMMAND_DISPATCH = {'new': _handle_reset_command, 'reset': _handle_reset_command, 'help': _handle_help_command, ...}. The dispatch becomes: handler = _COMMAND_DISPATCH.get(command); if handler: return await handler(self, event). This also unifies with the _known_commands set.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "repeated_structural_pattern"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The three largest files (run_agent.py, cli.py, gateway/run.py) grew organically as features were added, accumulating responsibilities without periodic extraction refactors",
+      "Config loading pattern was copy-pasted as new config keys were added rather than centralizing the load-once pattern"
+    ],
+    "likely_symptoms": [
+      "command_dispatch_chain is a symptom of the broader _handle_message method growing organically"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "design_coherence": {
+      "add": [
+        {
+          "header": "Clean tool and parser registry patterns",
+          "description": "tools/registry.py and environments/tool_call_parsers/__init__.py both use decorator-based registration with ABC base classes, providing focused, data-driven extensibility. These demonstrate the team's capacity for disciplined design.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Agent submodule extraction is well-executed",
+          "description": "The agent/ package extracts prompt_builder, context_compressor, display, trajectory, model_metadata, and anthropic_adapter into focused modules with clear single responsibilities and no circular dependencies.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Three orchestration monoliths dominate the codebase",
+          "description": "run_agent.py (5725 LOC), cli.py (5162 LOC), and gateway/run.py (4067 LOC) together comprise ~15K lines and mix configuration loading, session management, command dispatch, agent lifecycle, and UI concerns within single files/classes.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Repeated config.yaml loading across gateway/run.py",
+          "description": "Seven _load_* static methods and four inline blocks each independently open and parse the same YAML file. This is a structural pattern that should load once and distribute, not a single-responsibility decomposition.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

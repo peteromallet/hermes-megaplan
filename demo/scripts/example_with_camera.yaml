@@ -1,0 +1,135 @@
+# Example screenplay with camera directives for zoom/pan effects
+# Run with: python -m demo scripts/example_with_camera.yaml -o demo_zoom.mp4
+# Preview: python -m demo scripts/example_with_camera.yaml --play
+
+title: "Hermes Agent Demo — Camera Example"
+skin: "default"
+output:
+  width: 2560        # Render at 2x resolution
+  height: 1440
+  final_width: 1280  # Output at 720p
+  final_height: 720
+  fps: 30
+  font_size: 22
+  font_family: "Menlo"
+
+typing_speed: 0.04
+pause_between: 1.0
+
+scenes:
+  # ── Launch the agent ──────────────────────────────────
+  - action: clear
+
+  - action: type_command
+    prefix: "~ $ "
+    command: "hermes"
+
+  - action: pause
+    duration: 0.5
+
+  - action: banner
+    model: "deephermes-3-llama-3.1-8b"
+    context: "128K"
+    session_id: "d8f2a1c4"
+    tools_count: 24
+    skills_count: 42
+
+  - action: pause
+    duration: 1.5
+
+  # ── First exchange: zoom into the prompt area ─────────
+  - user: "Search for the latest AI agent frameworks and compare them"
+    thinking_time: 3.0
+    camera:
+      zoom: 1.8
+      y: 0.15          # Focus near top (prompt area)
+      at: "user_start"
+      duration: 0.8
+      ease: "ease-in-out"
+    tools:
+      - icon: "🔍"
+        verb: "search"
+        detail: '"AI agent frameworks comparison 2026"'
+        duration: "1.8s"
+        delay: 0.3
+      - icon: "📄"
+        verb: "fetch"
+        detail: "github.com/trending/python"
+        duration: "1.2s"
+        delay: 0.2
+      - icon: "📄"
+        verb: "fetch"
+        detail: "arxiv.org/abs/2603.09441"
+        duration: "0.9s"
+        delay: 0.15
+    camera_response:
+      zoom: 1.4
+      y: 0.65           # Pan down to response area
+      at: "response_start"
+      duration: 0.5
+      ease: "ease-in-out"
+    response: |
+      Here's a comparison of the top AI agent frameworks in 2026:
+
+      | Framework | Stars | Key Feature |
+      |-----------|-------|-------------|
+      | **Hermes Agent** | 12.4k | Full-stack agent with browser, terminal, and tool use |
+      | **CrewAI** | 28.1k | Multi-agent orchestration with role-based agents |
+      | **AutoGen** | 35.2k | Microsoft's conversational agent framework |
+
+      Hermes Agent stands out for its **integrated toolset** — browser
+      automation, terminal access, file editing, and web search all built
+      in, with a polished terminal UI.
+    post_pause: 0.8
+
+  # ── Camera reset: zoom back out ───────────────────────
+  - action: camera
+    zoom: 1.0
+    duration: 1.0
+    ease: "ease-out"
+
+  # ── Second exchange: zoom to code ─────────────────────
+  - user: "Write a quick benchmark script to test response times"
+    thinking_time: 2.5
+    camera:
+      zoom: 1.6
+      y: 0.2
+      at: "user_start"
+      duration: 0.6
+      ease: "ease-in-out"
+    tools:
+      - icon: "✍️"
+        verb: " write"
+        detail: "benchmark.py"
+        duration: "0.6s"
+        delay: 0.15
+      - icon: "💻"
+        verb: "$"
+        detail: "python benchmark.py"
+        duration: "3.1s"
+        delay: 0.3
+    camera_response:
+      zoom: 1.5
+      y: 0.7
+      at: "response_start"
+      duration: 0.4
+      ease: "ease-in-out"
+    response: |
+      Created and ran `benchmark.py`. Results:
+
+      ```
+      Framework        Avg Response   P95 Latency
+      ─────────────────────────────────────────────
+      Hermes Agent     0.82s          1.24s
+      CrewAI           1.45s          2.31s
+      AutoGen          1.12s          1.89s
+      ```
+
+      Hermes Agent is the fastest for single-turn tool-use tasks,
+      thanks to its optimized tool dispatch pipeline.
+
+  # ── Final camera reset ────────────────────────────────
+  - action: camera
+    zoom: 1.0
+    duration: 0.8
+    ease: "ease-out"

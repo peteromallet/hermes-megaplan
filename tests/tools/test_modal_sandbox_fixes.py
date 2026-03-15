@@ -158,8 +158,8 @@ class TestEphemeralDiskCheck:
     def test_ephemeral_disk_skipped_when_unsupported(self):
         """If modal.Sandbox.create doesn't have ephemeral_disk param, skip it."""
         # Mock the modal import and Sandbox.create signature
-        mock_modal = MagicMock()
-        mock_sandbox_create = MagicMock()
+        MagicMock()
+        MagicMock()
         # Simulate a signature WITHOUT ephemeral_disk
         import inspect
         mock_params = {
@@ -169,7 +169,7 @@ class TestEphemeralDiskCheck:
             "cpu": inspect.Parameter("cpu", inspect.Parameter.KEYWORD_ONLY),
             "memory": inspect.Parameter("memory", inspect.Parameter.KEYWORD_ONLY),
         }
-        mock_sig = inspect.Signature(parameters=list(mock_params.values()))
+        inspect.Signature(parameters=list(mock_params.values()))
 
         with patch.dict(os.environ, {"TERMINAL_ENV": "modal"}):
             config = _tt_mod._get_env_config()

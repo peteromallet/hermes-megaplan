@@ -176,7 +176,7 @@ def _strategy_indentation_flexible(content: str, pattern: str) -> List[Tuple[int
     def strip_indent(s):
         return '\n'.join(line.lstrip() for line in s.split('\n'))
     
-    pattern_stripped = strip_indent(pattern)
+    strip_indent(pattern)
     
     content_lines = content.split('\n')
     content_stripped_lines = [line.lstrip() for line in content_lines]

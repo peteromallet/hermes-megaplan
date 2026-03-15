@@ -1659,7 +1659,7 @@ def _model_flow_anthropic(config, current_model=""):
     )
     from hermes_cli.models import _PROVIDER_MODELS
 
-    pconfig = PROVIDER_REGISTRY["anthropic"]
+    PROVIDER_REGISTRY["anthropic"]
 
     # Check ALL credential sources
     existing_key = (
@@ -2340,13 +2340,13 @@ For more help on a command:
                              help="Replace any existing gateway instance (useful for systemd)")
     
     # gateway start
-    gateway_start = gateway_subparsers.add_parser("start", help="Start gateway service")
+    gateway_subparsers.add_parser("start", help="Start gateway service")
     
     # gateway stop
-    gateway_stop = gateway_subparsers.add_parser("stop", help="Stop gateway service")
+    gateway_subparsers.add_parser("stop", help="Stop gateway service")
     
     # gateway restart
-    gateway_restart = gateway_subparsers.add_parser("restart", help="Restart gateway service")
+    gateway_subparsers.add_parser("restart", help="Restart gateway service")
     
     # gateway status
     gateway_status = gateway_subparsers.add_parser("status", help="Show gateway status")
@@ -2357,10 +2357,10 @@ For more help on a command:
     gateway_install.add_argument("--force", action="store_true", help="Force reinstall")
     
     # gateway uninstall
-    gateway_uninstall = gateway_subparsers.add_parser("uninstall", help="Uninstall gateway service")
+    gateway_subparsers.add_parser("uninstall", help="Uninstall gateway service")
 
     # gateway setup
-    gateway_setup = gateway_subparsers.add_parser("setup", help="Configure messaging platforms")
+    gateway_subparsers.add_parser("setup", help="Configure messaging platforms")
 
     gateway_parser.set_defaults(func=cmd_gateway)
     
@@ -2540,10 +2540,10 @@ For more help on a command:
     config_subparsers = config_parser.add_subparsers(dest="config_command")
     
     # config show (default)
-    config_show = config_subparsers.add_parser("show", help="Show current configuration")
+    config_subparsers.add_parser("show", help="Show current configuration")
     
     # config edit
-    config_edit = config_subparsers.add_parser("edit", help="Open config file in editor")
+    config_subparsers.add_parser("edit", help="Open config file in editor")
     
     # config set
     config_set = config_subparsers.add_parser("set", help="Set a configuration value")
@@ -2551,16 +2551,16 @@ For more help on a command:
     config_set.add_argument("value", nargs="?", help="Value to set")
     
     # config path
-    config_path = config_subparsers.add_parser("path", help="Print config file path")
+    config_subparsers.add_parser("path", help="Print config file path")
     
     # config env-path
-    config_env = config_subparsers.add_parser("env-path", help="Print .env file path")
+    config_subparsers.add_parser("env-path", help="Print .env file path")
     
     # config check
-    config_check = config_subparsers.add_parser("check", help="Check for missing/outdated config")
+    config_subparsers.add_parser("check", help="Check for missing/outdated config")
     
     # config migrate
-    config_migrate = config_subparsers.add_parser("migrate", help="Update config with new options")
+    config_subparsers.add_parser("migrate", help="Update config with new options")
     
     config_parser.set_defaults(func=cmd_config)
     
@@ -2574,7 +2574,7 @@ For more help on a command:
     )
     pairing_sub = pairing_parser.add_subparsers(dest="pairing_action")
 
-    pairing_list_parser = pairing_sub.add_parser("list", help="Show pending + approved users")
+    pairing_sub.add_parser("list", help="Show pending + approved users")
 
     pairing_approve_parser = pairing_sub.add_parser("approve", help="Approve a pairing code")
     pairing_approve_parser.add_argument("platform", help="Platform name (telegram, discord, slack, whatsapp)")
@@ -2584,7 +2584,7 @@ For more help on a command:
     pairing_revoke_parser.add_argument("platform", help="Platform name")
     pairing_revoke_parser.add_argument("user_id", help="User ID to revoke")
 
-    pairing_clear_parser = pairing_sub.add_parser("clear-pending", help="Clear all pending codes")
+    pairing_sub.add_parser("clear-pending", help="Clear all pending codes")
 
     def cmd_pairing(args):
         from hermes_cli.pairing import pairing_command
@@ -2801,7 +2801,7 @@ For more help on a command:
     sessions_prune.add_argument("--source", help="Only prune sessions from this source")
     sessions_prune.add_argument("--yes", "-y", action="store_true", help="Skip confirmation")
 
-    sessions_stats = sessions_subparsers.add_parser("stats", help="Show session store statistics")
+    sessions_subparsers.add_parser("stats", help="Show session store statistics")
 
     sessions_rename = sessions_subparsers.add_parser("rename", help="Set or change a session's title")
     sessions_rename.add_argument("session_id", help="Session ID to rename")

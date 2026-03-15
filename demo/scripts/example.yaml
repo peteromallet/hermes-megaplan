@@ -1,0 +1,118 @@
+# Example Hermes Agent demo screenplay
+# Run with: python demo/player.py demo/scripts/example.yaml
+
+title: "Hermes Agent Demo"
+typing_speed: 0.04
+pause_between: 1.0
+
+scenes:
+  # ── Launch the agent ──────────────────────────────────
+  - action: clear
+
+  - action: type_command
+    prefix: "~ $ "
+    command: "hermes"
+
+  - action: pause
+    duration: 0.5
+
+  - action: banner
+    model: "deephermes-3-llama-3.1-8b"
+    context: "128K"
+    session_id: "d8f2a1c4"
+    tools_count: 24
+    skills_count: 42
+
+  - action: pause
+    duration: 1.5
+
+  # ── First exchange: web search ────────────────────────
+  - user: "What are the latest developments in AI agents?"
+    thinking_time: 3.5
+    tools:
+      - icon: "🔍"
+        verb: "search"
+        detail: '"latest developments AI agents 2026"'
+        duration: "2.1s"
+        delay: 0.3
+      - icon: "📄"
+        verb: "fetch"
+        detail: "arxiv.org/abs/2603.12847"
+        duration: "1.8s"
+        delay: 0.3
+      - icon: "📄"
+        verb: "fetch"
+        detail: "techcrunch.com/2026/03/12/..."
+        duration: "1.2s"
+        delay: 0.2
+    response: |
+      Here are the key developments in AI agents as of March 2026:
+
+      **1. Multi-Agent Orchestration** — New frameworks allow agents to
+      coordinate on complex tasks, with each agent specializing in different
+      domains (code, research, communication).
+
+      **2. Tool-Use Improvements** — Models now reliably chain 10+ tool
+      calls with error recovery, making real-world automation practical.
+
+      **3. Long-Running Agents** — Agents can now maintain context across
+      hours-long sessions with persistent memory and session resumption.
+
+      Want me to dive deeper into any of these areas?
+
+  # ── Second exchange: code task ────────────────────────
+  - user: "Write a Python function that fetches and summarizes a webpage"
+    thinking_time: 4.0
+    tools:
+      - icon: "✍️"
+        verb: " write"
+        detail: "src/summarize.py"
+        duration: "0.8s"
+        delay: 0.2
+    response: |
+      I've created `src/summarize.py` with a `fetch_and_summarize()` function:
+
+      ```python
+      import httpx
+      from bs4 import BeautifulSoup
+
+      async def fetch_and_summarize(url: str, max_length: int = 500) -> str:
+          async with httpx.AsyncClient() as client:
+              resp = await client.get(url, follow_redirects=True)
+              resp.raise_for_status()
+
+          soup = BeautifulSoup(resp.text, "html.parser")
+          # Extract main content, strip boilerplate
+          for tag in soup(["script", "style", "nav", "footer"]):
+              tag.decompose()
+
+          text = soup.get_text(separator=" ", strip=True)
+          return text[:max_length] + "..." if len(text) > max_length else text
+      ```
+
+      The function uses `httpx` for async HTTP and `BeautifulSoup` for HTML
+      parsing. It strips scripts, styles, and navigation before extracting text.
+
+  # ── Third exchange: terminal command ──────────────────
+  - user: "Run the tests to make sure everything passes"
+    thinking_time: 2.5
+    tools:
+      - icon: "💻"
+        verb: "$"
+        detail: "pytest tests/ -v --tb=short"
+        duration: "4.2s"
+        delay: 0.4
+    response: |
+      All tests pass:
+
+      ```
+      tests/test_summarize.py::test_fetch_success     PASSED
+      tests/test_summarize.py::test_html_cleanup       PASSED
+      tests/test_summarize.py::test_max_length          PASSED
+      tests/test_summarize.py::test_redirect_handling    PASSED
+
+      4 passed in 1.23s
+      ```
+
+      Everything looks good — the summarizer handles redirects, HTML cleanup,
+      and length truncation correctly.

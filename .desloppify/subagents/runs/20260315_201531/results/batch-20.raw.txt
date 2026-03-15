@@ -1,0 +1,177 @@
+{
+  "batch": "type_safety",
+  "batch_index": 20,
+  "assessments": {
+    "type_safety": 52.0
+  },
+  "dimension_notes": {
+    "type_safety": {
+      "evidence": [
+        "MessageEvent.source typed as SessionSource but defaults to None (base.py:283) -- violates annotation at runtime",
+        "SessionStore.update_session has last_prompt_tokens: int = None (session.py:571) -- int annotation but None default",
+        "AIAgent.__init__ has ~10 parameters typed as str/int/callable but defaulting to None without Optional (run_agent.py:213-256)",
+        "PairingStore.list_approved and list_pending have platform: str = None without Optional (pairing.py:95,193)",
+        "HermesControl._request has body: dict = None without Optional (hermes_control_client.py:55)",
+        "SessionResetPolicy.mode is str but actually a 4-value union used in 6+ comparisons across session.py -- no Literal type",
+        "AIAgent.api_mode is str but a 3-value union used in 50+ comparisons across run_agent.py -- no Literal type or enum",
+        "build_channel_directory uses Dict[Any, Any] for adapters parameter where Dict[Platform, BasePlatformAdapter] exists (channel_directory.py:44)",
+        "Core gateway dataclasses (SessionSource, SessionEntry, PlatformConfig) have thorough Optional[] annotations on nullable fields",
+        "BasePlatformAdapter abstract interface has complete return type annotations on all public methods",
+        "ToolRegistry has explicit typing on all public query/dispatch methods"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": null
+    }
+  },
+  "dimension_judgment": {
+    "type_safety": {
+      "dimension_character": "The codebase shows a split personality on type safety. Well-structured gateway dataclasses and the tool registry have careful Optional[] annotations and return types. However, the two largest classes (AIAgent in run_agent.py and SessionStore/PairingStore) have pervasive Optional-without-annotation parameters, and the two most-compared discriminator values (api_mode and SessionResetPolicy.mode) use bare str instead of Literal or Enum types, making it easy for typos to silently pass. The pattern of typing parameters as X but defaulting to None recurs across at least 15 parameters in production code.",
+      "score_rationale": "The consistent 'typed as X, defaults to None' anti-pattern affects core classes that drive the entire application (AIAgent, SessionStore, PairingStore). While this pattern is tolerated by Python's runtime, it makes static analysis unreliable and contradicts the annotation's promise. The lack of Literal types for the heavily-discriminated api_mode and reset policy mode compounds the issue -- these two strings control major code paths. Strong typing in the gateway dataclasses prevents this from being worse, but the AIAgent class alone (the central orchestrator) has roughly 10 such violations. Score of 52 reflects significant but not catastrophic type discipline issues: the annotations exist but frequently lie about nullability."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "type_safety",
+      "identifier": "optional_without_annotation",
+      "summary": "15+ parameters typed as concrete types (str, int, dict, callable) but default to None without Optional annotation",
+      "related_files": [
+        "run_agent.py",
+        "gateway/session.py",
+        "gateway/pairing.py",
+        "gateway/hermes_control_client.py"
+      ],
+      "evidence": [
+        "run_agent.py:215 base_url: str = None",
+        "run_agent.py:216 api_key: str = None",
+        "run_agent.py:218 api_mode: str = None",
+        "run_agent.py:242 max_tokens: int = None",
+        "run_agent.py:237 tool_progress_callback: callable = None",
+        "gateway/session.py:571 last_prompt_tokens: int = None",
+        "gateway/pairing.py:95 platform: str = None",
+        "gateway/hermes_control_client.py:55 body: dict = None"
+      ],
+      "suggestion": "Add Optional[] to all parameters that accept None. For example: base_url: Optional[str] = None, last_prompt_tokens: Optional[int] = None. This is a mechanical find-and-replace that can be done per-file.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "missing_optional_annotation"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "untyped_discriminator_api_mode",
+      "summary": "AIAgent.api_mode is bare str but acts as a 3-value discriminated union compared 50+ times",
+      "related_files": [
+        "run_agent.py"
+      ],
+      "evidence": [
+        "run_agent.py:218 api_mode: str = None, but only valid values are 'chat_completions', 'codex_responses', 'anthropic_messages'",
+        "run_agent.py:321 validates against a set literal but discards the constraint immediately into a str field",
+        "50+ comparisons like self.api_mode == 'codex_responses' scattered across run_agent.py with no typo protection"
+      ],
+      "suggestion": "Define ApiMode = Literal['chat_completions', 'codex_responses', 'anthropic_messages'] and type the field as Optional[ApiMode]. This enables static analysis to catch typos in the 50+ comparison sites.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "string_typed_discriminator"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "untyped_discriminator_reset_mode",
+      "summary": "SessionResetPolicy.mode is bare str but only valid as 'daily' | 'idle' | 'both' | 'none'",
+      "related_files": [
+        "gateway/config.py",
+        "gateway/session.py"
+      ],
+      "evidence": [
+        "gateway/config.py:73 mode: str = 'both' with comment listing 4 valid values",
+        "gateway/session.py:414,419,424,452,457,462 six comparisons against string literals with no protection"
+      ],
+      "suggestion": "Define ResetMode = Literal['daily', 'idle', 'both', 'none'] and type SessionResetPolicy.mode as ResetMode. The enum is already documented in the docstring; making it a type gives static analysis teeth.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "string_typed_discriminator"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "message_event_source_not_optional",
+      "summary": "MessageEvent.source typed as SessionSource but defaults to None -- annotation lies about nullability",
+      "related_files": [
+        "gateway/platforms/base.py"
+      ],
+      "evidence": [
+        "gateway/platforms/base.py:283 source: SessionSource = None",
+        "Callers like _process_message_background (line 706) access event.source.thread_id without null check, relying on runtime convention rather than type guarantees"
+      ],
+      "suggestion": "Change to source: Optional[SessionSource] = None. Alternatively, if source is always set before use, make it a required field and remove the default.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit",
+      "root_cause_cluster": "missing_optional_annotation"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "adapters_dict_any_any",
+      "summary": "build_channel_directory uses Dict[Any, Any] where specific types exist",
+      "related_files": [
+        "gateway/channel_directory.py"
+      ],
+      "evidence": [
+        "gateway/channel_directory.py:44 def build_channel_directory(adapters: Dict[Any, Any]) -> Dict[str, Any]",
+        "The function immediately compares keys against Platform enum values (line 56: platform == Platform.DISCORD), proving the key type is Platform"
+      ],
+      "suggestion": "Change parameter type to Dict[Platform, BasePlatformAdapter] which matches actual usage and enables static analysis of the key comparisons.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Pervasive use of 'param: ConcreteType = None' pattern instead of 'param: Optional[ConcreteType] = None' -- likely from early Python 3 habits before Optional was widely adopted",
+      "String-typed discriminated unions (api_mode, reset mode) that grew organically as new variants were added, never refactored to Literal or Enum types"
+    ],
+    "likely_symptoms": [
+      "adapters_dict_any_any"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "type_safety": {
+      "add": [
+        {
+          "header": "Gateway dataclasses have thorough Optional annotations",
+          "description": "SessionSource, SessionEntry, SessionContext, PlatformConfig, and HomeChannel use Optional[] correctly for nullable fields and have complete return type annotations on all methods. This forms a well-typed core for the session management layer.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "ToolRegistry and BasePlatformAdapter fully annotated",
+          "description": "The tool registry public API (register, dispatch, get_definitions, query helpers) and BasePlatformAdapter abstract interface have explicit parameter and return type annotations, including proper Optional usage.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Pervasive X-typed-None-default pattern in AIAgent and stores",
+          "description": "AIAgent.__init__ has ~10 parameters typed as str/int/callable that default to None without Optional. SessionStore.update_session, PairingStore methods, and HermesControl._request repeat the pattern. This undermines static analysis across the main orchestration class.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "String-typed discriminated unions for api_mode and reset mode",
+          "description": "AIAgent.api_mode (3 values, 50+ comparisons) and SessionResetPolicy.mode (4 values, 6 comparisons) use bare str instead of Literal or Enum. These are the two most safety-critical discriminators in the codebase, controlling API dispatch and session lifecycle.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Type-ignore comments are minimal and explained",
+          "description": "Only 4 type-ignore comments in production code, all on conditional imports (aiohttp, backports.zoneinfo, anthropic SDK) where the pattern is standard for optional dependencies.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

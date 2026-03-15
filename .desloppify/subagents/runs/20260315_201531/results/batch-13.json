@@ -1,0 +1,145 @@
+{
+  "batch": "ai_generated_debt",
+  "batch_index": 13,
+  "assessments": {
+    "ai_generated_debt": 79.5
+  },
+  "dimension_notes": {
+    "ai_generated_debt": {
+      "evidence": [
+        "toolsets.py: get_toolset() is a single return TOOLSETS.get(name) with 10-line Args/Returns docstring; get_all_toolsets(), get_toolset_names(), validate_toolset() follow the same pattern of 6-10 line docstrings on 1-2 line trivial bodies",
+        "toolsets.py: restating comments that echo the code: '# Return toolset definition' above return TOOLSETS.get(name), '# Get toolset definition' above TOOLSETS.get(name), '# Collect direct tools' above tools = set(toolset.get('tools', []))",
+        "toolset_distributions.py: same docstring bloat pattern as toolsets.py -- get_distribution(), list_distributions(), validate_distribution() are all 1-line bodies with verbose multi-section docstrings",
+        "toolset_distributions.py: inline probability comments contradict their values -- 'image_gen: 90, # 80% chance', 'web: 97, # 15% chance of web search/scrape for documentation' -- stale comments from copied/edited AI output",
+        "Identical .env loading boilerplate (try/except UnicodeDecodeError with utf-8/latin-1 fallback) copied verbatim across 7+ entry-point files: cli.py, run_agent.py, gateway/run.py, hermes_cli/main.py, hermes_cli/doctor.py, rl_cli.py, cron/scheduler.py",
+        "Positive: module-level docstrings across the codebase are genuinely informative -- auxiliary_client.py explains resolution chains, tools/registry.py documents import ordering for circular-import safety, hermes_time.py documents fallback behavior",
+        "Positive: no noisy entry/exit debug logging pattern -- logger calls are purposeful and targeted at errors and key lifecycle events",
+        "Positive: section dividers (# ===, # ---, # ──) used consistently as navigation aids in large files, not as ceremony"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Not applicable (score below 85)"
+    }
+  },
+  "dimension_judgment": {
+    "ai_generated_debt": {
+      "dimension_character": "The codebase is largely free of AI-generated noise in its core modules -- module docstrings are informative, comments explain non-obvious constraints, and logging is purposeful rather than ceremonial. However, two modules (toolsets.py and toolset_distributions.py) exhibit textbook LLM-hallmark patterns: verbose Args/Returns docstrings on trivial one-line functions, restating comments, and stale probability comments that contradict their actual values. The duplicated .env loading boilerplate across 7+ files is a cross-cutting instance of copied-verbatim code that a human would have extracted into a shared helper.",
+      "score_rationale": "The core codebase (gateway, agent/, tools/registry, hermes_state, hermes_time) is clean and purpose-driven, which would support a score in the high 80s. However, toolsets.py and toolset_distributions.py have concentrated docstring bloat and restating comments that a developer must wade through, and the stale mismatched comments in toolset_distributions.py are a reliability concern. The 7-file .env loading duplication adds a boilerplate tax that pulls the score into the high 70s -- a developer working here would encounter these patterns regularly in certain areas but find most of the codebase respectably clean."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "toolsets_docstring_bloat",
+      "summary": "toolsets.py has verbose multi-section docstrings on trivial 1-2 line functions",
+      "related_files": ["toolsets.py"],
+      "evidence": [
+        "get_toolset() is 'return TOOLSETS.get(name)' with 10-line Args/Returns docstring",
+        "get_all_toolsets() is 'return TOOLSETS.copy()' with 6-line docstring",
+        "get_toolset_names() is 'return list(TOOLSETS.keys())' with 6-line docstring",
+        "validate_toolset() has 8-line docstring for 2-line body",
+        "validate_distribution() in toolset_distributions.py mirrors the same pattern"
+      ],
+      "suggestion": "Replace verbose Args/Returns docstrings with single-line docstrings. For example, get_toolset() needs only: \"\"\"Return toolset definition by name, or None.\"\"\" -- the types are already in the signature annotations.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "toolsets_restating_comments",
+      "summary": "toolsets.py contains inline comments that restate the code without adding insight",
+      "related_files": ["toolsets.py"],
+      "evidence": [
+        "Line 311: '# Return toolset definition' above 'return TOOLSETS.get(name)'",
+        "Line 349: '# Get toolset definition' above 'toolset = TOOLSETS.get(name)'",
+        "Line 354: '# Collect direct tools' above 'tools = set(toolset.get(\"tools\", []))'",
+        "Line 342: '# Check for cycles' above 'if name in visited:'"
+      ],
+      "suggestion": "Delete these restating comments. The code is self-explanatory -- 'return TOOLSETS.get(name)' does not need a '# Return toolset definition' caption.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "stale_probability_comments",
+      "summary": "toolset_distributions.py has inline probability comments that contradict their actual values",
+      "related_files": ["toolset_distributions.py"],
+      "evidence": [
+        "Line 48: 'image_gen: 90,  # 80% chance of image generation tools' (90 != 80)",
+        "Line 49: 'vision: 90,  # 60% chance of vision tools' (90 != 60)",
+        "Line 50: 'web: 55,  # 40% chance of web tools' (55 != 40)",
+        "Line 201: 'web: 97,  # 15% chance' (97 != 15)",
+        "Line 202: 'browser: 75,  # 10% chance' (75 != 10)"
+      ],
+      "suggestion": "Remove all these inline probability comments -- the numeric values are self-documenting and the stale comments are actively misleading. If comments are kept, they should describe the reasoning for the weight, not restate the number.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "dotenv_loading_boilerplate",
+      "summary": "Identical .env loading try/except boilerplate duplicated across 7+ entry-point files",
+      "related_files": ["cli.py", "run_agent.py", "gateway/run.py", "hermes_cli/main.py", "hermes_cli/doctor.py", "rl_cli.py", "cron/scheduler.py"],
+      "evidence": [
+        "The pattern 'try: load_dotenv(..., encoding=\"utf-8\") except UnicodeDecodeError: load_dotenv(..., encoding=\"latin-1\")' appears identically in all 7 files",
+        "Several files also share the _hermes_home / _user_env / _project_env variable setup before the dotenv call",
+        "Each file also duplicates 'os.environ.setdefault(\"MSWEA_GLOBAL_CONFIG_DIR\", str(_hermes_home))'"
+      ],
+      "suggestion": "Extract a shared load_hermes_env() helper (e.g., in hermes_constants.py or a new hermes_bootstrap.py) that encapsulates the env file resolution, encoding fallback, and MSWEA_GLOBAL_CONFIG_DIR setup. Each entry point then calls one function instead of duplicating 10+ lines.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "duplicated_bootstrap"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "toolsets.py and toolset_distributions.py appear to have been generated with verbose LLM defaults and not edited down -- the docstring style there is markedly different from the rest of the codebase",
+      "The .env loading boilerplate was likely copy-pasted as each new entry point was created, with no refactoring pass to extract a shared helper"
+    ],
+    "likely_symptoms": [
+      "stale_probability_comments is a symptom of the docstring bloat pattern -- when values change, the restating comments go stale"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "ai_generated_debt": {
+      "add": [
+        {
+          "header": "Informative module-level docstrings throughout core",
+          "description": "Module docstrings in agent/, gateway/, tools/registry.py, and utility modules explain architecture, resolution chains, import ordering rationale, and non-obvious constraints -- genuinely useful context that aids navigation.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Purposeful logging with no noisy entry/exit pattern",
+          "description": "logger.getLogger(__name__) is used pervasively but logging calls are targeted at errors and key lifecycle events. No entry/exit debug logging or full object dumps observed.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Section dividers as navigation aids in large files",
+          "description": "Consistent use of # === / # --- / # -- dividers in files like run_agent.py, hermes_state.py, tools/registry.py provides visual structure without ceremony.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Docstring bloat concentrated in toolsets modules",
+          "description": "toolsets.py and toolset_distributions.py have verbose multi-section docstrings on trivial 1-2 line functions, contrasting with the rest of the codebase where docstrings are proportionate to function complexity.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Duplicated bootstrap boilerplate across entry points",
+          "description": "The .env loading pattern (try utf-8, except latin-1 fallback) plus MSWEA env setup is copied verbatim across 7+ files rather than extracted to a shared helper.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

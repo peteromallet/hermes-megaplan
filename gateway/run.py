@@ -246,8 +246,7 @@ class GatewayRunner:
         # Track running agents per session for interrupt support
         # Key: session_key, Value: AIAgent instance
         self._running_agents: Dict[str, Any] = {}
-        self._pending_messages: Dict[str, str] = {}  # Queued messages during interrupt
-        
+
         # Track pending exec approvals per session
         # Key: session_key, Value: {"command": str, "pattern_key": str}
         self._pending_approvals: Dict[str, Dict[str, str]] = {}
@@ -277,6 +276,47 @@ class GatewayRunner:
         # Auto-reply configs per session (ephemeral, in-memory only)
         # Key: session_key, Value: {"prompt": str, "model": str|None, "max_turns": int, "turn_count": int}
         self._autoreply_configs: Dict[str, Dict[str, Any]] = {}
+
+    def get_session_info(self, key: str) -> dict:
+        """Return session state for the control API."""
+        cfg = self._autoreply_configs.get(key)
+        return {
+            "autoreply": {
+                "enabled": cfg is not None,
+                "prompt": cfg.get("prompt", "") if cfg else None,
+                "max_turns": cfg.get("max_turns", 0) if cfg else None,
+                "turn_count": cfg.get("turn_count", 0) if cfg else None,
+            },
+        }
+
+    async def inject_message(self, key: str, text: str, *, interrupt: bool = True):
+        """Inject a synthetic message into a session via its platform adapter.
+
+        Resolves the session key ('_any' picks the first running session),
+        builds a MessageEvent from the session's stored origin, and hands it
+        to the adapter's handle_message with the requested interrupt mode.
+        """
+        if key == "_any":
+            if not self._running_agents:
+                raise LookupError("No running session to inject into")
+            key = next(iter(self._running_agents))
+
+        self.session_store._ensure_loaded()
+        entry = self.session_store._entries.get(key)
+        if not entry or not entry.origin:
+            raise LookupError(f"No session found for '{key}'")
+
+        source = entry.origin
+        adapter = self.adapters.get(source.platform)
+        if not adapter:
+            raise LookupError(f"No adapter for platform '{source.platform}'")
+
+        event = MessageEvent(
+            text=text,
+            source=source,
+            message_id=f"control-{time.time()}",
+        )
+        await adapter.handle_message(event, interrupt=interrupt)
 
     def _get_or_create_gateway_honcho(self, session_key: str):
         """Return a persistent Honcho manager/config pair for this gateway session."""
@@ -921,10 +961,6 @@ class GatewayRunner:
             running_agent = self._running_agents[_quick_key]
             logger.debug("PRIORITY interrupt for session %s", _quick_key[:20])
             running_agent.interrupt(event.text)
-            if _quick_key in self._pending_messages:
-                self._pending_messages[_quick_key] += "\n" + event.text
-            else:
-                self._pending_messages[_quick_key] = event.text
             return None
         
         # Check for commands
@@ -2092,9 +2128,20 @@ class GatewayRunner:
                 source=source,
                 message_id=f"autoreply-{time.time()}",
             )
-            await adapter.handle_message(synthetic_event)
+            await adapter.handle_message(synthetic_event, interrupt=False)
         except Exception as e:
             logger.error("[AutoReply] Failed: %s", e)
+            try:
+                adapter = self.adapters.get(source.platform)
+                if adapter:
+                    metadata = {"thread_id": source.thread_id} if source.thread_id else None
+                    await adapter.send(
+                        chat_id=source.chat_id,
+                        content=f"_[Auto-reply error: {e}. Loop paused. Use `/autoreply` to check status.]_",
+                        metadata=metadata,
+                    )
+            except Exception:
+                pass
 
     async def _handle_retry_command(self, event: MessageEvent) -> str:
         """Handle /retry command - re-send the last user message."""
@@ -2782,7 +2829,7 @@ class GatewayRunner:
 
             # Read new config before shutting down, so we know what will be added/removed
             new_config = _load_mcp_config()
-            new_server_names = set(new_config.keys())
+            set(new_config.keys())
 
             # Shutdown existing connections
             await loop.run_in_executor(None, shutdown_mcp_servers)
@@ -3100,7 +3147,7 @@ class GatewayRunner:
 
         session_id = watcher["session_id"]
         interval = watcher["check_interval"]
-        session_key = watcher.get("session_key", "")
+        watcher.get("session_key", "")
         platform_name = watcher.get("platform", "")
         chat_id = watcher.get("chat_id", "")
         notify_mode = self._load_background_notifications_mode()

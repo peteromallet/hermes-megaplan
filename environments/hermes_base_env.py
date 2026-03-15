@@ -371,7 +371,7 @@ class HermesAgentBaseEnv(BaseEnv):
                     parts.append(f"[TOOL CALL] {name}({args})")
 
             elif role == "tool":
-                tool_id = msg.get("tool_call_id", "")
+                msg.get("tool_call_id", "")
                 result = content
                 # Truncate long tool results for display
                 if len(result) > 500:

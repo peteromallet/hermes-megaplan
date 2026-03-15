@@ -1,0 +1,89 @@
+{
+  "batch": "authorization_consistency",
+  "batch_index": 12,
+  "assessments": {
+    "authorization_consistency": 89.5
+  },
+  "dimension_notes": {
+    "authorization_consistency": {
+      "evidence": [
+        "All platform message handling routes through a single _is_user_authorized() in gateway/run.py (line 843), covering Telegram, Discord, WhatsApp, Slack, Signal, Email, and HomeAssistant",
+        "Every platform has a consistent {PLATFORM}_ALLOWED_USERS env var and {PLATFORM}_ALLOW_ALL_USERS flag, plus global fallbacks (GATEWAY_ALLOWED_USERS, GATEWAY_ALLOW_ALL_USERS)",
+        "DM pairing system in gateway/pairing.py uses cryptographic randomness, rate limiting, lockout, code expiry, and 0600 file permissions",
+        "Control API is localhost-only (127.0.0.1 binding) and opt-in (HERMES_CONTROL_API=true), with injected messages re-entering the auth pipeline",
+        "HomeAssistant bypass is explicitly documented with rationale (HASS_TOKEN authenticates the connection)",
+        "Discord ExecApprovalView reuses the same DISCORD_ALLOWED_USERS set for button auth, consistent with centralized check",
+        "Signal group filtering defaults to disabled (safe default), requiring explicit SIGNAL_GROUP_ALLOWED_USERS"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Allowlist env var names are repeated as magic string literals across 6+ files (run.py, setup.py, gateway.py, config.py, migration scripts) rather than being defined as shared constants. While the enforcement point is centralized, the configuration surface uses scattered string literals that could drift."
+    }
+  },
+  "dimension_judgment": {
+    "authorization_consistency": {
+      "dimension_character": "Authorization in this codebase is architecturally strong: a single centralized enforcement point (_is_user_authorized in GatewayRunner) applies a consistent multi-layer auth chain across all six messaging platforms. The pairing system adds defense-in-depth with proper security controls. The control API surface is appropriately scoped to localhost with opt-in activation. The only friction a developer would encounter is that the allowlist env var names are repeated as string literals across setup, config, and migration code rather than being defined as shared constants.",
+      "score_rationale": "The auth patterns are uniformly applied with clear, documented exceptions (HomeAssistant bypass, control API localhost binding). A developer reviewing security would find a trustworthy, centralized enforcement model. The magic-string repetition of env var names is a minor maintainability concern that prevents a score above 90, but it does not create a security gap since the enforcement point is singular. This places the codebase solidly in the 'strong with minor friction' range."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "authorization_consistency",
+      "identifier": "allowlist_env_var_magic_strings",
+      "summary": "Allowlist env var names repeated as magic strings across 6+ files instead of shared constants",
+      "related_files": [
+        "gateway/run.py",
+        "hermes_cli/setup.py",
+        "hermes_cli/gateway.py",
+        "hermes_cli/config.py",
+        "gateway/platforms/discord.py"
+      ],
+      "evidence": [
+        "gateway/run.py lines 632-634 and 865-870 define platform_env_map with literal strings like 'TELEGRAM_ALLOWED_USERS'",
+        "hermes_cli/setup.py lines 1876, 1955, 2045 use the same strings independently",
+        "hermes_cli/gateway.py lines 443, 471, 504, 542 repeat them again",
+        "gateway/platforms/discord.py line 97 uses 'DISCORD_ALLOWED_USERS' directly"
+      ],
+      "suggestion": "Define a dict mapping Platform enum values to their env var names (e.g., PLATFORM_ALLOWLIST_VARS = {Platform.TELEGRAM: 'TELEGRAM_ALLOWED_USERS', ...}) in gateway/config.py, and import it everywhere these strings appear. This centralizes the mapping and prevents drift if a new platform is added.",
+      "confidence": "medium",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [],
+    "likely_symptoms": [],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "authorization_consistency": {
+      "add": [
+        {
+          "header": "Centralized user auth in GatewayRunner",
+          "description": "All platform message handling routes through _is_user_authorized() in gateway/run.py, providing a single enforcement point with a consistent multi-layer chain: per-platform allow-all, pairing store, platform allowlist, global allowlist, global allow-all, default deny.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "DM pairing with OWASP-aligned security",
+          "description": "gateway/pairing.py implements cryptographic code generation, rate limiting, lockout after failed attempts, code expiry (1 hour), and restrictive file permissions (0600). This provides a secure onboarding path for new users without requiring static ID configuration.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Control API scoped to localhost with opt-in",
+          "description": "The HTTP control API binds to 127.0.0.1 only and requires HERMES_CONTROL_API=true to activate. Injected messages re-enter the auth pipeline, so the control surface does not bypass user-level authorization.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Platform allowlist env vars as magic strings",
+          "description": "Env var names like TELEGRAM_ALLOWED_USERS are repeated as string literals across run.py, setup.py, gateway.py, config.py, and migration scripts. The enforcement point is centralized so drift risk is low, but adding a new platform requires updating strings in multiple files.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

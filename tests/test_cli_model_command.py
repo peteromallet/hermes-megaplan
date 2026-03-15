@@ -36,7 +36,7 @@ class TestModelCommand:
 
         with patch("hermes_cli.models.fetch_api_models",
                    return_value=["anthropic/claude-opus-4.6"]), \
-             patch("cli.save_config_value") as save_mock:
+             patch("cli.save_config_value"):
             cli_obj.process_command("/model anthropic/fake-model")
 
         output = capsys.readouterr().out
@@ -59,11 +59,11 @@ class TestModelCommand:
         cli_obj = self._make_cli()
 
         with patch("hermes_cli.models.fetch_api_models",
-                   return_value=["openai/gpt-5.4"]) as fetch_mock, \
-             patch("cli.save_config_value") as save_mock:
+                   return_value=["openai/gpt-5.4"]), \
+             patch("cli.save_config_value"):
             cli_obj.process_command("/model gpt-5.4")
 
-        output = capsys.readouterr().out
+        capsys.readouterr().out
         # Model is accepted (with warning) even if not in API listing
         assert cli_obj.model == "gpt-5.4"
 

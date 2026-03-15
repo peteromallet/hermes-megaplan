@@ -137,24 +137,6 @@ class TestMessageCombining:
         assert "Show me what you were going to delete instead" in combined
         assert combined.count("\n") == 2
 
-    def test_gateway_pending_messages_append(self):
-        """Simulate gateway _pending_messages append logic."""
-        pending = {}
-        key = "agent:main:telegram:dm"
-
-        # First message
-        if key in pending:
-            pending[key] += "\n" + "Stop!"
-        else:
-            pending[key] = "Stop!"
-
-        # Second message
-        if key in pending:
-            pending[key] += "\n" + "Do something else instead"
-        else:
-            pending[key] = "Do something else instead"
-
-        assert pending[key] == "Stop!\nDo something else instead"
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,100 @@
+{
+  "batch": "naming_quality",
+  "batch_index": 5,
+  "assessments": {
+    "naming_quality": 82.5
+  },
+  "dimension_notes": {
+    "naming_quality": {
+      "evidence": [
+        "Consistent snake_case convention across all production code with no camelCase leakage (only unittest setUp/tearDown)",
+        "Domain-specific names in gateway layer are precise: SessionSource, MessageEvent, SendResult, BasePlatformAdapter, HomeChannel",
+        "Boolean predicates use clear naming: is_command(), is_connected, is_interrupted(), should_compress()",
+        "File names communicate content well: prompt_builder.py, context_compressor.py, channel_directory.py",
+        "Generic 'process' verb in process_content_with_llm (web_tools.py) hides the actual summarization/extraction behavior",
+        "do_ prefix pattern in skills_hub.py (do_search, do_browse, do_install, etc.) adds no information over the verb alone and obscures the domain (skills)",
+        "process_command in cli.py is a dispatch method, not a 'processor'"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Generic 'process' and 'do_' verbs in web_tools.py and skills_hub.py require reading implementations to understand behavior. While isolated, these are in frequently-touched modules."
+    }
+  },
+  "dimension_judgment": {
+    "naming_quality": {
+      "dimension_character": "The codebase has a strong foundation of domain-aligned naming across its core subsystems -- gateway, agent, and tools layers use specific, intent-revealing names for classes, predicates, and constants. The main friction points are concentrated in two files: skills_hub.py uses a 'do_' prefix convention that strips domain context from action names, and web_tools.py uses 'process' as a verb for what is actually content summarization. These are isolated pockets rather than systemic patterns.",
+      "score_rationale": "Names are generally precise enough that a developer can predict behavior from names alone in most modules. The gateway layer, session management, and tool registry demonstrate consistently strong naming. The score lands at 82.5 because the do_ prefix pattern (8 functions in skills_hub.py) and the generic 'process_content_with_llm' represent recurring vocabulary drift from the codebase's otherwise domain-specific norms -- enough to occasionally slow a developer down but not enough to undermine trust in names overall."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "naming_quality",
+      "identifier": "generic_process_verb_web_tools",
+      "summary": "process_content_with_llm uses generic 'process' verb -- actually summarizes web content",
+      "related_files": ["tools/web_tools.py"],
+      "evidence": [
+        "process_content_with_llm on line 91 of web_tools.py creates 'intelligent summaries with key excerpts' from web page content, but the name suggests generic processing"
+      ],
+      "suggestion": "Rename to summarize_web_content or extract_web_summary to communicate the summarization intent. The function is called from within the same module, so the rename is low-risk.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "naming_quality",
+      "identifier": "do_prefix_skills_hub",
+      "summary": "do_ prefix on 8 skills_hub.py functions adds no information and obscures domain",
+      "related_files": ["hermes_cli/skills_hub.py"],
+      "evidence": [
+        "do_search, do_browse, do_install, do_inspect, do_list, do_audit, do_uninstall, do_tap, do_publish -- all prefixed with 'do_' which conveys no additional meaning beyond the verb that follows it",
+        "Contrast with the rest of the codebase which uses domain-qualified names: build_channel_directory, scan_skill_commands, build_skill_invocation_message"
+      ],
+      "suggestion": "Rename to search_skills, browse_skills, install_skill, inspect_skill, list_skills, audit_skill, uninstall_skill, tap_registry, publish_skill. These names communicate both the action and the domain (skills) consistently with the codebase's naming style.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": ["Two isolated modules (skills_hub.py and web_tools.py) use generic verb patterns while the rest of the codebase uses domain-specific naming"],
+    "likely_symptoms": [],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "naming_quality": {
+      "add": [
+        {
+          "header": "Domain-precise gateway naming",
+          "description": "Gateway subsystem uses highly specific names throughout: SessionSource, MessageEvent, SendResult, BasePlatformAdapter, HomeChannel, SessionResetPolicy. A developer reading gateway code can predict class roles from names alone.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Consistent boolean predicate naming",
+          "description": "Boolean-returning methods and properties consistently use is_/should_ prefixes: is_command(), is_connected, is_interrupted(), should_compress(), should_compress_preflight(). No name/behavior mismatches found in predicate methods.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Strict snake_case convention",
+          "description": "All production code uses snake_case for functions and variables, PascalCase for classes, with zero camelCase leakage outside of unittest setUp/tearDown. This is a codebase-wide invariant.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Action-oriented utility naming",
+          "description": "Utility functions use verb+noun patterns that communicate intent: atomic_json_write, build_channel_directory, scan_skill_commands, build_skill_invocation_message, cache_image_from_bytes.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "do_ prefix convention in skills_hub.py",
+          "description": "hermes_cli/skills_hub.py uses a do_ prefix (do_search, do_install, etc.) that diverges from the codebase's pattern of domain-qualified verb+noun names. This is a localized style island.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

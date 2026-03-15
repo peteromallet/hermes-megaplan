@@ -1,0 +1,161 @@
+{
+  "batch": "error_consistency",
+  "batch_index": 4,
+  "assessments": {
+    "error_consistency": 62.5
+  },
+  "dimension_notes": {
+    "error_consistency": {
+      "evidence": [
+        "139 instances of 'except Exception: pass' across 47 files, with gateway/run.py (30) and cli.py (21) as the heaviest offenders",
+        "Mixed logging for errors: print() in gateway/session.py lines 350/367/562 and gateway/platforms/base.py line 836, logger.debug() in mirror.py, logger.warning() in scheduler.py -- no consistent severity convention",
+        "Broad 'except Exception' catches on config YAML parsing (gateway/run.py ~10 identical blocks) mask programming errors like AttributeError/TypeError alongside expected IOError/yaml.YAMLError",
+        "Tool boundary has a consistent convention: handlers return JSON strings with {\"error\": ...} key, and model_tools.handle_function_call wraps uncaught exceptions in the same format",
+        "SendResult dataclass provides structured success/error reporting for platform adapters",
+        "AuthError is the only domain-specific exception class; all other error paths rely on bare Exception or stdlib types",
+        "gateway/session.py SQLite operations (lines 530, 561, 591, 607, 635, 663, 720, 747, 764) all catch Exception and log at debug level, meaning database corruption or schema drift would be invisible in normal operation"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high"
+    }
+  },
+  "dimension_judgment": {
+    "error_consistency": {
+      "dimension_character": "The codebase has a deliberate and consistent error strategy at the tool-calling boundary (JSON error returns) and the platform adapter layer (SendResult). However, a pervasive pattern of broad 'except Exception: pass/log' throughout the gateway, CLI, and session management layers creates unpredictable error behavior. A developer working in these areas cannot tell which failures are silently swallowed, which are logged at what severity, and which propagate -- because the same pattern is used for both expected optional-dependency failures and unexpected programming errors.",
+      "score_rationale": "The tool boundary and adapter layer show intentional error design, preventing this from being truly poor. But 139 bare except-and-pass blocks across 47 files, mixed print/logger usage for errors, and broad catches that mask programming bugs alongside IO errors represent significant drag. A developer making changes to session management or config loading cannot predict how errors propagate and would need to read each handler individually. This sits between the 60 (significant drag) and 70 (mixed) anchors, pulled up slightly by the well-designed tool and adapter error conventions."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "error_consistency",
+      "identifier": "broad_except_pass_config_loading",
+      "summary": "gateway/run.py has 30 'except Exception: pass' blocks, mostly around config.yaml parsing",
+      "related_files": ["gateway/run.py"],
+      "evidence": [
+        "Lines 133, 210, 437, 465, 503, 524, 547, 574, 596, 616 all follow the same pattern: read config.yaml, catch Exception, pass. These catch AttributeError, TypeError, and other programming errors alongside expected IOError/YAMLError."
+      ],
+      "suggestion": "Extract a shared helper like '_read_config_key(dotted_path, default)' that catches only (OSError, yaml.YAMLError, KeyError, TypeError) and returns the default. This replaces ~10 identical try/except blocks with one call each, narrowing the catch scope and eliminating code duplication.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "broad_exception_swallowing"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "cli_broad_except_pass",
+      "summary": "cli.py has 21 'except Exception: pass' blocks silently swallowing errors",
+      "related_files": ["cli.py"],
+      "evidence": [
+        "Lines 448, 452, 457, 1153, 1239, 1400, 1600, 1912, 2167, 2658, 2743, 3328 all catch Exception and pass. Many protect optional UI features (skin loading, banner display) but the broad catch prevents detection of real bugs in those paths."
+      ],
+      "suggestion": "Narrow each catch to the specific expected exception (ImportError for optional imports, OSError for file reads, ValueError for parsing). For the UI-optional blocks, at minimum log at debug level rather than silently passing.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "broad_exception_swallowing"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "mixed_logging_for_errors",
+      "summary": "Error logging inconsistently uses print(), logger.debug(), logger.warning(), and logger.error()",
+      "related_files": ["gateway/session.py", "gateway/platforms/base.py", "gateway/run.py", "gateway/mirror.py"],
+      "evidence": [
+        "gateway/session.py uses print() for session warnings (lines 350, 367, 562) despite having a logger defined at module scope",
+        "gateway/platforms/base.py line 836 uses print() + traceback.print_exc() while the same file uses logger.error() for image send failures on line 775",
+        "gateway/session.py SQLite failures logged at debug level (line 531, 591, 607, 636, 664, 720, 747, 764) making database issues invisible in production"
+      ],
+      "suggestion": "Replace print() error reporting with logger.warning() throughout gateway/session.py and gateway/platforms/base.py. Promote SQLite operation failures from logger.debug() to logger.warning() since database issues should be visible in normal operation.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "inconsistent_error_reporting"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "session_db_errors_invisible",
+      "summary": "All SQLite session DB operations log failures at debug level, hiding database problems",
+      "related_files": ["gateway/session.py"],
+      "evidence": [
+        "12 except Exception blocks in gateway/session.py (lines 349, 366, 491, 530, 561, 591, 607, 635, 663, 720, 747, 764) catch all exceptions from DB operations. Most log at debug level. If the database is corrupted or the schema drifts, these failures accumulate silently while the system appears to work using JSONL fallback."
+      ],
+      "suggestion": "Catch sqlite3.Error specifically instead of Exception. Log first occurrence per session at warning level, then suppress subsequent failures for the same session to avoid log spam. This preserves the graceful-degradation pattern while making the initial failure visible.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "root_cause_cluster": "broad_exception_swallowing"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "no_domain_exceptions",
+      "summary": "Only one custom exception class (AuthError) exists; all other error paths use bare Exception or stdlib types",
+      "related_files": ["hermes_cli/auth.py", "gateway/session.py", "gateway/run.py", "tools/send_message_tool.py"],
+      "evidence": [
+        "AuthError in hermes_cli/auth.py is well-designed with provider, code, and relogin_required fields. But the rest of the codebase raises ValueError, RuntimeError, or LookupError generically. Gateway code has no SessionError or ConfigError. Tool code has no ToolExecutionError. This means callers cannot catch domain-specific failures."
+      ],
+      "suggestion": "Add a small set of domain exceptions: GatewayConfigError (for config loading), SessionError (for session store failures). These let catch blocks be specific without explosion of exception types. Start with the 2-3 most impactful boundaries where broad catches currently mask bugs.",
+      "confidence": "medium",
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The 'agent must never crash' philosophy was applied uniformly with broad Exception catches rather than selectively with narrow, domain-appropriate catches",
+      "Absence of shared config-reading utilities led to repeated try/except blocks with broad catches in gateway/run.py",
+      "No logging convention was established -- contributors used whichever output mechanism was convenient (print vs logger, debug vs warning)"
+    ],
+    "likely_symptoms": [
+      "mixed_logging_for_errors is a symptom of the no-logging-convention root cause"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "error_consistency": {
+      "add": [
+        {
+          "header": "Consistent tool error return convention",
+          "description": "All tool handlers return JSON strings with {\"error\": ...} key on failure. model_tools.handle_function_call wraps uncaught exceptions in the same format. This gives the LLM a predictable error contract.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "SendResult dataclass for platform operations",
+          "description": "Platform adapters return SendResult with explicit success/error fields, providing structured error reporting at the adapter boundary.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Optional-dependency imports use ImportError consistently",
+          "description": "Conditional imports (discord, slack_bolt, croniter) consistently use except ImportError to set sentinel flags like SLACK_AVAILABLE = False, enabling clean feature-gating.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Deliberate graceful degradation for optional subsystems",
+          "description": "Honcho, SQLite session DB, skin engine, and memory systems are all treated as optional -- failures are caught and the agent continues. This is an intentional availability choice, not accidental error swallowing. The issue is that the catches are too broad (Exception instead of specific types).",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Pervasive broad except-and-pass pattern",
+          "description": "139 instances of 'except Exception: pass' across 47 files. Most protect optional features but catch programming errors (AttributeError, TypeError) alongside expected IO/parsing failures, making bugs in optional subsystems invisible.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "No error logging convention",
+          "description": "Error reporting uses a mix of print(), logger.debug(), logger.warning(), and logger.error() with no consistent severity mapping. Same-severity failures are logged differently in sibling functions within the same file.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "AuthError is sole domain exception",
+          "description": "hermes_cli/auth.py defines a well-structured AuthError with metadata fields. No other module defines domain-specific exceptions, so callers must catch broad types everywhere else.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

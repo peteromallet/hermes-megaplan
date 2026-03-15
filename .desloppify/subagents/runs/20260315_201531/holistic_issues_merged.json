@@ -1,0 +1,2660 @@
+{
+  "assessments": {
+    "abstraction_fitness": {
+      "score": 76.0,
+      "components": [
+        "Abstraction Leverage",
+        "Indirection Cost",
+        "Interface Honesty",
+        "Delegation Density",
+        "Definition Directness",
+        "Type Discipline"
+      ],
+      "component_scores": {
+        "Abstraction Leverage": 82.0,
+        "Indirection Cost": 78.0,
+        "Interface Honesty": 80.0,
+        "Delegation Density": 90.0,
+        "Definition Directness": 72.0,
+        "Type Discipline": 68.0
+      }
+    },
+    "ai_generated_debt": 79.5,
+    "api_surface_coherence": 82.5,
+    "authorization_consistency": 89.5,
+    "contract_coherence": 74.5,
+    "convention_outlier": 85.0,
+    "cross_module_architecture": 62.5,
+    "dependency_health": 78.5,
+    "design_coherence": 62.5,
+    "error_consistency": 62.5,
+    "high_level_elegance": 72.5,
+    "incomplete_migration": 82.5,
+    "initialization_coupling": 82.5,
+    "logic_clarity": 82.5,
+    "low_level_elegance": 68.5,
+    "mid_level_elegance": 62.5,
+    "naming_quality": 82.5,
+    "package_organization": 72.5,
+    "test_strategy": 62.5,
+    "type_safety": 52.0
+  },
+  "dimension_notes": {
+    "cross_module_architecture": {
+      "evidence": [
+        "Bidirectional coupling between root (.) and hermes_cli/: 13 edges out, 11 edges back. hermes_cli/callbacks.py imports CLI_CONFIG from cli.py; hermes_cli/main.py imports cli.main; hermes_cli imports from hermes_state, model_tools, utils, toolsets at root level.",
+        "tools/code_execution_tool.py (line 656) and tools/delegate_tool.py (line 649) both import CLI_CONFIG from root-level cli.py, violating dependency direction: leaf tool modules reaching into the UI/CLI layer for configuration.",
+        "tools/registry.py line 124 imports _run_async from model_tools, directly contradicting its own docstring (lines 7-8) which states 'tools/registry.py (no imports from model_tools or tool files)'.",
+        "gateway/run.py line 2813 imports private symbols _load_mcp_config, _servers, _lock from tools/mcp_tool -- crossing both package boundary and privacy convention.",
+        "_is_oauth_token (private function in agent/anthropic_adapter.py) is imported cross-module by run_agent.py, hermes_cli/models.py, and hermes_cli/doctor.py -- a shared utility hidden behind a private name.",
+        "Bidirectional coupling between gateway/ and tools/: 9 edges gateway->tools, 4 edges tools->gateway. gateway/channel_directory.py imports private _send_slack from tools/send_message_tool.py.",
+        "30+ production files use sys.path.insert at import time to enable cross-package imports, indicating the project lacks proper package installation and relies on runtime path manipulation.",
+        "Three hub files (cli.py 5162 LOC, run_agent.py 5725 LOC, gateway/run.py 4067 LOC) collectively act as coupling magnifiers, importing from nearly every subsystem."
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "architectural_change",
+      "confidence": "high",
+      "issues_preventing_higher_score": "N/A - score is below 85"
+    },
+    "high_level_elegance": {
+      "evidence": [
+        "Major packages (agent/, gateway/, hermes_cli/, tools/, cron/, honcho_integration/, environments/) each map to a clear domain capability with predictable naming",
+        "gateway/__init__.py defines an explicit __all__ with curated public surface; gateway/platforms/ follows uniform one-file-per-platform pattern with ADDING_A_PLATFORM.md guide",
+        "Tool registry pattern (tools/registry.py) is consistently used by all 30+ tools, with model_tools.py as a thin orchestration layer",
+        "cli.py (5,162 lines), run_agent.py (5,725 lines), and gateway/run.py (4,067 lines) are monolithic files concentrating multiple responsibilities each",
+        "AGENTS.md project structure lists acp_adapter/ which does not exist and omits honcho_integration/, skills/, demo/, scripts/, hermes_time.py, utils.py, rl_cli.py, mini_swe_runner.py among others",
+        "13 top-level Python files (17K lines total) create a flat root with mixed production (cli.py, run_agent.py, hermes_state.py) and research code (batch_runner.py, trajectory_compressor.py, rl_cli.py, mini_swe_runner.py)"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "architectural_change",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Three monolithic files (cli.py, run_agent.py, gateway/run.py) each exceed 4K lines and concentrate multiple responsibilities, making change boundaries wide and ownership unclear within each. AGENTS.md structure documentation is materially inaccurate. Research/RL code is intermixed with production code at the top level without clear separation."
+    },
+    "convention_outlier": {
+      "evidence": [
+        "All 7 platform adapters inherit BasePlatformAdapter and implement the same abstract interface (connect, disconnect, send, send_typing, get_chat_info)",
+        "All tool files use registry.register() at module level following a documented, consistent pattern",
+        "Uniform type strategy: only dataclass (38 instances), no TypedDict/NamedTuple/dataclass mixing",
+        "All tool call parsers follow the same ABC + @register_parser decorator pattern",
+        "sys.path.insert used in 4 of 7 platform adapters (telegram, discord, slack, whatsapp) but not in the other 3 (signal, email, homeassistant) \u2014 same directory, two import conventions",
+        "check_ha_requirements abbreviates the platform name while all 6 sibling adapters use full names (check_telegram_requirements, etc.)"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "sys.path.insert inconsistency across sibling platform adapters creates two import conventions in the same directory; check_ha_requirements naming outlier breaks the naming pattern established by all other adapters; tools/__init__.py is a 264-line re-export surface that is largely bypassed by actual consumers"
+    },
+    "error_consistency": {
+      "evidence": [
+        "139 instances of 'except Exception: pass' across 47 files, with gateway/run.py (30) and cli.py (21) as the heaviest offenders",
+        "Mixed logging for errors: print() in gateway/session.py lines 350/367/562 and gateway/platforms/base.py line 836, logger.debug() in mirror.py, logger.warning() in scheduler.py -- no consistent severity convention",
+        "Broad 'except Exception' catches on config YAML parsing (gateway/run.py ~10 identical blocks) mask programming errors like AttributeError/TypeError alongside expected IOError/yaml.YAMLError",
+        "Tool boundary has a consistent convention: handlers return JSON strings with {\"error\": ...} key, and model_tools.handle_function_call wraps uncaught exceptions in the same format",
+        "SendResult dataclass provides structured success/error reporting for platform adapters",
+        "AuthError is the only domain-specific exception class; all other error paths rely on bare Exception or stdlib types",
+        "gateway/session.py SQLite operations (lines 530, 561, 591, 607, 635, 663, 720, 747, 764) all catch Exception and log at debug level, meaning database corruption or schema drift would be invisible in normal operation"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": ""
+    },
+    "naming_quality": {
+      "evidence": [
+        "Consistent snake_case convention across all production code with no camelCase leakage (only unittest setUp/tearDown)",
+        "Domain-specific names in gateway layer are precise: SessionSource, MessageEvent, SendResult, BasePlatformAdapter, HomeChannel",
+        "Boolean predicates use clear naming: is_command(), is_connected, is_interrupted(), should_compress()",
+        "File names communicate content well: prompt_builder.py, context_compressor.py, channel_directory.py",
+        "Generic 'process' verb in process_content_with_llm (web_tools.py) hides the actual summarization/extraction behavior",
+        "do_ prefix pattern in skills_hub.py (do_search, do_browse, do_install, etc.) adds no information over the verb alone and obscures the domain (skills)",
+        "process_command in cli.py is a dispatch method, not a 'processor'"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Generic 'process' and 'do_' verbs in web_tools.py and skills_hub.py require reading implementations to understand behavior. While isolated, these are in frequently-touched modules."
+    },
+    "abstraction_fitness": {
+      "evidence": [
+        "AIAgent.__init__ accepts ~40 keyword parameters covering API config, provider routing, callbacks, session management, and feature flags -- a wide implicit parameter bag that grows with every feature addition (run_agent.py:213-257)",
+        "tools/__init__.py re-exports 81+ symbols across 264 LOC, duplicating the discovery that model_tools.py + tools.registry already provide; callers in practice import from model_tools, not tools/__init__",
+        "gateway/platforms/base.py contains three near-identical cache utility sets (image, audio, document) with the same get_dir/from_bytes/from_url/cleanup pattern copy-pasted, differing only in directory name and content-type defaults",
+        "model_tools.py backward-compat wrappers (get_all_tool_names, get_toolset_for_tool, etc.) are pure forwarding to registry but have 5 active callers across cli.py, run_agent.py, doctor.py, banner.py -- functioning as intentional facade, matching the skip criterion",
+        "BasePlatformAdapter (gateway/platforms/base.py) has 7 concrete subclasses (Telegram, Discord, WhatsApp, Slack, Signal, Email, HomeAssistant) -- well-justified base class with real extension pressure",
+        "HermesAgentBaseEnv has 5+ concrete subclasses for different RL environments -- legitimate abstraction hierarchy",
+        "ToolRegistry (tools/registry.py) is a clean self-registration pattern: each tool module calls register() at import time, model_tools.py triggers discovery then delegates -- no unnecessary wrapper chains",
+        "utils.py is small (89 LOC), tightly scoped to atomic file writes, and genuinely used across modules -- not a generic helper dumping ground"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "",
+      "sub_axes": {
+        "abstraction_leverage": 82.0,
+        "indirection_cost": 78.0,
+        "interface_honesty": 80.0,
+        "delegation_density": 90.0,
+        "definition_directness": 72.0,
+        "type_discipline": 68.0
+      }
+    },
+    "dependency_health": {
+      "evidence": [
+        "jinja2 is declared as a core dependency in pyproject.toml and requirements.txt but is never imported or referenced in any source file",
+        "litellm, typer, and platformdirs are in core dependencies as mini-swe-agent deps, but the mini-swe-agent directory is empty (no src/)",
+        "Both requests and httpx are core dependencies serving overlapping HTTP client roles: requests in browser_tool.py and model_metadata.py, httpx in hermes_cli/ and tools/skills_hub.py (66 call sites)",
+        "requirements.txt has drifted from pyproject.toml: includes aiohttp, discord.py, python-telegram-bot as core (pyproject.toml correctly puts them in [messaging] extra), and is missing anthropic",
+        "No lock file exists for reproducible installs; most core deps are unpinned (no upper bounds or exact pins)"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Unused jinja2 dependency; three mini-swe-agent deps bundled in core for an empty subproject; dual HTTP client libraries (requests + httpx) for the same purpose; requirements.txt drift from canonical pyproject.toml"
+    },
+    "low_level_elegance": {
+      "evidence": [
+        "_handle_message in gateway/run.py spans ~720 lines (912-1633) with 5+ nesting levels in the session hygiene section alone",
+        "config.yaml loading boilerplate repeated 11 times in gateway/run.py (_load_prefill_messages, _load_ephemeral_system_prompt, _load_reasoning_config, _load_show_reasoning, _load_provider_routing, _load_fallback_model, _run_agent, etc.)",
+        "parse_v4a_patch duplicates the 'save previous operation' flush block 4 times identically",
+        "Small utility modules (tools/interrupt.py, utils.py, gateway/hermes_control_client.py, gateway/control_api.py) demonstrate clean, focused control flow",
+        "Data classes for result types (ReadResult, WriteResult, PatchResult, MessageEvent) are consistently structured",
+        "tools/fuzzy_match.py uses a data-driven strategy chain pattern that keeps control flow flat"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "None"
+    },
+    "mid_level_elegance": {
+      "evidence": [
+        "BasePlatformAdapter -> MessageEvent -> SendResult provides a clean, explicit adapter contract with normalized data types at the platform boundary",
+        "ControlAPI + HermesControl client form a well-separated REST boundary with explicit JSON shapes and stdlib-only client",
+        "Tool registry (tools/registry.py) provides a single registration seam: tools self-register at import, model_tools.py provides unified discovery/dispatch",
+        "HookRegistry fires lifecycle events with transparent sync/async support and catch-and-log error isolation",
+        "gateway/run.py contains 20 independent yaml.safe_load() calls re-parsing the same config.yaml file across _load_reasoning_config, _load_show_reasoning, _load_provider_routing, _load_fallback_model, _run_agent, session hygiene, and others -- config translation is scattered across every method boundary",
+        "_handle_message is a 700+ line method mixing authorization, command dispatch (20+ if/elif chains), session management, media enrichment, auto-transcription, session hygiene compression, agent invocation, transcript persistence, and autoreply scheduling -- orchestration does not read as composition",
+        "Temporary AIAgent instances are constructed in at least 4 places (_run_agent, _flush_memories, _handle_compress_command, session hygiene) with non-identical initialization: different max_iterations (4, 8, 90), different enabled_toolsets, different model resolution paths",
+        "_get_or_create_gateway_honcho uses hasattr(self, '_honcho_managers') despite __init__ setting these attributes, indicating boundary trust inconsistency"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "None"
+    },
+    "test_strategy": {
+      "evidence": [
+        "66 of ~140 non-trivial production modules have corresponding test files (47% by file count)",
+        "gateway/run.py (4067 lines, 26 importers) has no dedicated test file; command tests exist but _handle_message pipeline is only tested once in test_session_hygiene.py with heavy mocking",
+        "tools/terminal_tool.py (1266 lines, 12 importers), tools/browser_tool.py (1899 lines), hermes_cli/main.py (3149 lines), hermes_cli/auth.py (2092 lines) have zero tests",
+        "9 test files use object.__new__(GatewayRunner) bypassing __init__, manually setting 8-12 internal attributes \u2014 fragile to any attribute addition",
+        "conftest.py provides autouse _isolate_hermes_home and 30s SIGALRM timeout \u2014 strong isolation foundation",
+        "Minimal snapshot usage (4 files) \u2014 tests are behavior-based assertions, not snapshot-dependent",
+        "tests/fakes/fake_ha_server.py provides a real HTTP+WS fake for integration testing \u2014 good pattern"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": ""
+    },
+    "api_surface_coherence": {
+      "evidence": [
+        "All 8 platform adapters implement send() with identical signature (chat_id, content, reply_to, metadata) matching the abstract base class definition in base.py:388",
+        "All platform adapters implement connect() -> bool and disconnect() -> None with consistent shapes",
+        "HermesControl client mirrors the ControlAPI server endpoints 1:1 with clear sync-only API (no mixed sync/async)",
+        "Tool registry.register() provides a uniform registration interface used consistently across 20+ tool files",
+        "cache_document_from_bytes(data, filename) breaks the pattern established by cache_image_from_bytes(data, ext) and cache_audio_from_bytes(data, ext) \u2014 the second parameter has different semantics",
+        "build_source() in BasePlatformAdapter has 9 parameters (self + 8), exceeding the >5 threshold for API boundary concerns, though all are optional kwargs with sensible defaults",
+        "GatewayRunner._autoreply_configs uses Dict[str, Dict[str, Any]] \u2014 an untyped dict bag for autoreply state rather than a dataclass, making the shape implicit",
+        "handle_function_call() has 5 parameters (function_name, function_args, task_id, user_task, enabled_tools) \u2014 at the threshold but each serves a distinct purpose",
+        "ControlAPI.send_message checks hasattr(result, '__await__') to handle sync/async callers \u2014 duck-typed async detection rather than explicit interface"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "cache_*_from_bytes functions have inconsistent second-parameter semantics across the same module. build_source has 9 parameters that could be simplified. Autoreply config uses untyped dict bags instead of a dataclass."
+    },
+    "authorization_consistency": {
+      "evidence": [
+        "All platform message handling routes through a single _is_user_authorized() in gateway/run.py (line 843), covering Telegram, Discord, WhatsApp, Slack, Signal, Email, and HomeAssistant",
+        "Every platform has a consistent {PLATFORM}_ALLOWED_USERS env var and {PLATFORM}_ALLOW_ALL_USERS flag, plus global fallbacks (GATEWAY_ALLOWED_USERS, GATEWAY_ALLOW_ALL_USERS)",
+        "DM pairing system in gateway/pairing.py uses cryptographic randomness, rate limiting, lockout, code expiry, and 0600 file permissions",
+        "Control API is localhost-only (127.0.0.1 binding) and opt-in (HERMES_CONTROL_API=true), with injected messages re-entering the auth pipeline",
+        "HomeAssistant bypass is explicitly documented with rationale (HASS_TOKEN authenticates the connection)",
+        "Discord ExecApprovalView reuses the same DISCORD_ALLOWED_USERS set for button auth, consistent with centralized check",
+        "Signal group filtering defaults to disabled (safe default), requiring explicit SIGNAL_GROUP_ALLOWED_USERS"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Allowlist env var names are repeated as magic string literals across 6+ files (run.py, setup.py, gateway.py, config.py, migration scripts) rather than being defined as shared constants. While the enforcement point is centralized, the configuration surface uses scattered string literals that could drift."
+    },
+    "ai_generated_debt": {
+      "evidence": [
+        "toolsets.py: get_toolset() is a single return TOOLSETS.get(name) with 10-line Args/Returns docstring; get_all_toolsets(), get_toolset_names(), validate_toolset() follow the same pattern of 6-10 line docstrings on 1-2 line trivial bodies",
+        "toolsets.py: restating comments that echo the code: '# Return toolset definition' above return TOOLSETS.get(name), '# Get toolset definition' above TOOLSETS.get(name), '# Collect direct tools' above tools = set(toolset.get('tools', []))",
+        "toolset_distributions.py: same docstring bloat pattern as toolsets.py -- get_distribution(), list_distributions(), validate_distribution() are all 1-line bodies with verbose multi-section docstrings",
+        "toolset_distributions.py: inline probability comments contradict their values -- 'image_gen: 90, # 80% chance', 'web: 97, # 15% chance of web search/scrape for documentation' -- stale comments from copied/edited AI output",
+        "Identical .env loading boilerplate (try/except UnicodeDecodeError with utf-8/latin-1 fallback) copied verbatim across 7+ entry-point files: cli.py, run_agent.py, gateway/run.py, hermes_cli/main.py, hermes_cli/doctor.py, rl_cli.py, cron/scheduler.py",
+        "Positive: module-level docstrings across the codebase are genuinely informative -- auxiliary_client.py explains resolution chains, tools/registry.py documents import ordering for circular-import safety, hermes_time.py documents fallback behavior",
+        "Positive: no noisy entry/exit debug logging pattern -- logger calls are purposeful and targeted at errors and key lifecycle events",
+        "Positive: section dividers (# ===, # ---, # \u2500\u2500) used consistently as navigation aids in large files, not as ceremony"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Not applicable (score below 85)"
+    },
+    "incomplete_migration": {
+      "evidence": [
+        "SQLite + JSONL dual-write in gateway/session.py with 'during transition' comment but no migration completion plan",
+        "Deprecated on_auto_reset parameter still in SessionStore.__init__ signature (line 334) though never used",
+        "HERMES_TOOL_PROGRESS_MODE env var deprecated in config but still read as fallback in gateway/run.py:3297",
+        "_LEGACY_TOOLSET_MAP in model_tools.py provides backward compat for old _tools-suffixed toolset names \u2014 well-documented and tested",
+        "Config key coexistence: env_type/backend both accepted in cli.py terminal config with clear precedence",
+        "_normalize_max_turns_config handles legacy root-level max_turns in two separate locations (cli.py:266, hermes_cli/config.py:843)"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "SQLite/JSONL dual-write transition has no completion timeline; deprecated on_auto_reset parameter lingers in signature; deprecated env vars still actively read as fallback in production code"
+    },
+    "package_organization": {
+      "evidence": [
+        "tools/ contains 39 files in a flat directory with mixed concerns: tool implementations, infrastructure (registry, interrupt, process_registry, approval, debug_helpers, fuzzy_match, patch_parser, openrouter_client), and a 5-file skills cluster (skills_tool, skills_hub, skills_sync, skills_guard, skill_manager_tool)",
+        "hermes_cli/ contains 26 files flat with no subdirectories, mixing CLI subcommands, configuration, display/theming, and auth infrastructure",
+        "4 peripheral root files (batch_runner.py fan_in=2, trajectory_compressor.py fan_in=2, mini_swe_runner.py fan_in=0, rl_cli.py fan_in=0) share a batch/training pipeline concern but live scattered at root",
+        "toolset_distributions.py (fan_in=3) is consumed only by batch_runner.py and environments/ \u2014 co-locatable with batch pipeline files",
+        "Core root files (run_agent.py, cli.py, model_tools.py, hermes_constants.py, hermes_state.py, toolsets.py) have fan_in >= 9 and are legitimately root-level",
+        "gateway/ and gateway/platforms/ have clean layered structure with appropriate subdirectory separation",
+        "Coupling matrix shows tools/ imports from 7 different directories and is imported by 10 \u2014 high coupling breadth but consistent with its 'shared tools' role"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": ""
+    },
+    "initialization_coupling": {
+      "evidence": [
+        "tools/registry.py documents the import chain explicitly and is circular-import safe by design",
+        "hermes_constants.py is deliberately dependency-free for safe import from anywhere",
+        "Lazy initialization for Firecrawl, Honcho, file_ops clients avoids import-time side effects",
+        "gateway/run.py performs heavy import-time side effects: load_dotenv, yaml parsing, os.environ mutation across 50+ lines of module-scope code",
+        "sys.path.insert(0, ...) appears in 6 gateway platform modules and gateway/run.py at import time",
+        "TOOL_TO_TOOLSET_MAP and TOOLSET_REQUIREMENTS in model_tools.py are stale snapshots built once at module scope",
+        "DEFAULT_SUMMARIZER_MODEL in web_tools.py reads os.getenv at import time, creating a frozen snapshot"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "gateway/run.py module-scope env mutation creates test pollution risk; sys.path.insert scattered across gateway platform modules; a few import-time env reads create stale snapshots"
+    },
+    "design_coherence": {
+      "evidence": [
+        "AIAgent.__init__ accepts 40+ parameters spanning 6 distinct responsibility groups (LLM config, provider routing, callbacks, honcho integration, session management, logging config)",
+        "run_conversation() is ~1470 lines (lines 4024-5495 of run_agent.py) handling system prompt resolution, preflight compression, Honcho integration, the main tool-calling loop, API call construction, error recovery, and session persistence",
+        "gateway/run.py loads and parses ~/.hermes/config.yaml 11 separate times; 7 _load_* static methods each independently open, read, and yaml.safe_load the same file",
+        "gateway/platforms/base.py contains three nearly identical media cache implementations (image/audio/document) with copy-pasted get_dir, cache_from_bytes, cache_from_url, cleanup functions",
+        "Positive: tool_call_parsers/ uses a clean registry pattern with @register_parser decorator and ABC base class",
+        "Positive: tools/registry.py provides a well-designed central registry decoupling tool declaration from usage",
+        "Positive: agent/ package cleanly extracts prompt_builder, context_compressor, display, trajectory, and model_metadata into focused modules"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "None"
+    },
+    "contract_coherence": {
+      "evidence": [
+        "get_toolset_info() in toolsets.py (line 446) annotates return as Dict[str, Any] but returns None on line 458 when toolset is not found. Callers could hit AttributeError.",
+        "_deliver_to_platform() in gateway/delivery.py (line 264) annotates return as Dict[str, Any] but returns SendResult (a dataclass from base.py). The caller deliver() nests this under 'result' key, creating a dict containing a non-dict object.",
+        "get_image_cache_dir(), get_audio_cache_dir(), get_document_cache_dir() in gateway/platforms/base.py are named as getters but mutate filesystem by creating directories. The side effect is hidden behind a getter name.",
+        "detect_dangerous_command() in tools/approval.py uses bare 'tuple' annotation losing the (bool, Optional[str], Optional[str]) contract that the docstring describes.",
+        "Consistent tool handler return contracts: all MemoryStore methods (add, replace, remove) return Dict[str, Any] with documented success/error keys; tool handlers consistently return JSON strings with error envelopes.",
+        "Clean dataclass contracts: SessionSource, SessionEntry, MessageEvent, SendResult, DeliveryTarget all have consistent to_dict/from_dict roundtripping with matching type annotations.",
+        "HermesControl client methods consistently annotate -> dict and always return dict from _request, including error cases."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "None"
+    },
+    "logic_clarity": {
+      "evidence": [
+        "Four instances of identical if/else branches across production code: telegram.py:736, uninstall.py:280, skills_sync.py:204, fuzzy_match.py:403",
+        "Dead code in checkpoint_manager.py:255-260: git log result immediately overwritten, plus always-false 'if False' condition",
+        "Duplicated countdown check block in cli.py:3549-3551 where second block is always dead code",
+        "async def _send_email() in send_message_tool.py:289 performs blocking SMTP I/O via smtplib without any await",
+        "9 async functions in rl_training_tool.py never await (registered as is_async=True for tool registry contract)",
+        "No dead-code-after-return, no double-negation, no redundant boolean return patterns found in production code"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Four identical-branch if/else patterns across separate files, dead code block in checkpoint_manager.py, duplicated dead code in cli.py, and a blocking async function in send_message_tool.py together constitute recurring friction for developers tracing control flow."
+    },
+    "type_safety": {
+      "evidence": [
+        "MessageEvent.source typed as SessionSource but defaults to None (base.py:283) -- violates annotation at runtime",
+        "SessionStore.update_session has last_prompt_tokens: int = None (session.py:571) -- int annotation but None default",
+        "AIAgent.__init__ has ~10 parameters typed as str/int/callable but defaulting to None without Optional (run_agent.py:213-256)",
+        "PairingStore.list_approved and list_pending have platform: str = None without Optional (pairing.py:95,193)",
+        "HermesControl._request has body: dict = None without Optional (hermes_control_client.py:55)",
+        "SessionResetPolicy.mode is str but actually a 4-value union used in 6+ comparisons across session.py -- no Literal type",
+        "AIAgent.api_mode is str but a 3-value union used in 50+ comparisons across run_agent.py -- no Literal type or enum",
+        "build_channel_directory uses Dict[Any, Any] for adapters parameter where Dict[Platform, BasePlatformAdapter] exists (channel_directory.py:44)",
+        "Core gateway dataclasses (SessionSource, SessionEntry, PlatformConfig) have thorough Optional[] annotations on nullable fields",
+        "BasePlatformAdapter abstract interface has complete return type annotations on all public methods",
+        "ToolRegistry has explicit typing on all public query/dispatch methods"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "None"
+    }
+  },
+  "dimension_judgment": {
+    "cross_module_architecture": {
+      "dimension_character": "The codebase has multiple significant boundary violations: bidirectional coupling between root and hermes_cli, tools reaching up to the CLI layer for configuration, documented architecture contracts contradicted by runtime imports (tools/registry.py), and widespread private symbol access across module boundaries. While the gateway/platforms hierarchy and tools/interrupt signaling show intentional, clean design, the three massive hub files (cli.py, run_agent.py, gateway/run.py) amplify coupling and make changes to shared symbols ripple unpredictably. The pervasive sys.path.insert pattern (30+ files) reflects a project that has outgrown its ad-hoc import infrastructure.",
+      "score_rationale": "The score reflects significant structural boundary debt at the codebase level. A developer making changes would encounter recurring boundary violations and bidirectional coupling that make it hard to predict change impact. The tools->cli.py upward dependency and the registry's violated contract are high-confidence issues any senior engineer would flag. However, localized areas (gateway/platforms hierarchy, interrupt module, config types) show intentional architecture, preventing a lower score. This lands between 60 (significant drag) and 70 (mixed) -- the bidirectional coupling patterns and hub file concentration push it toward the lower end."
+    },
+    "high_level_elegance": {
+      "dimension_character": "The codebase has a sound domain-aligned package structure: gateway/, tools/, hermes_cli/, agent/, cron/, and honcho_integration/ each own a clear capability, and within those packages decomposition is generally clean (e.g., one file per platform adapter, one file per tool, explicit __init__.py exports). However, the three largest files (run_agent.py, cli.py, gateway/run.py) are 4-6K line monoliths that concentrate multiple responsibilities, undermining the otherwise good package-level decomposition. The project structure documentation in AGENTS.md is stale -- it contains a phantom directory and omits many real modules. Research/RL code (batch_runner, trajectory_compressor, rl_cli, environments/) coexists at the top level with production agent code without clear boundary markers.",
+      "score_rationale": "Package-level structure is domain-aligned and a new engineer could navigate the top-level directories confidently (pulling toward 80+). But three monolithic files totaling 15K lines blur ownership within their respective domains, and the inaccurate AGENTS.md means the 'map' of the codebase cannot be trusted. Research code intermixed at the root adds cognitive overhead. These issues create enough friction that a developer would regularly encounter 'why is this here?' moments, placing this in the 70-75 range -- mixed quality where good structure is undermined by concentrated files and documentation drift."
+    },
+    "convention_outlier": {
+      "dimension_character": "The codebase follows conventions with strong consistency in the areas that matter most: naming (snake_case throughout), type strategy (dataclass only), tool registration (registry.register pattern), and platform adapter structure (shared ABC with matching check_*_requirements functions). The few outliers are localized \u2014 a split in sys.path.insert usage among sibling platform adapters and one abbreviated function name \u2014 rather than systemic drift. The large tools/__init__.py barrel export is a minor convention outlier since it is rarely used by actual consumers.",
+      "score_rationale": "A developer can generally see a pattern in one area and trust it holds elsewhere. The tool registration, parser, and platform adapter patterns are all consistent and well-documented. The sys.path.insert split in gateway/platforms/ is the most notable inconsistency \u2014 it affects sibling modules in the same directory with no apparent rationale \u2014 pulling the score below 90. The check_ha_requirements naming outlier is minor but real. Overall this is solid with a few isolated rough edges, placing it near the 85 anchor."
+    },
+    "error_consistency": {
+      "dimension_character": "The codebase has a deliberate and consistent error strategy at the tool-calling boundary (JSON error returns) and the platform adapter layer (SendResult). However, a pervasive pattern of broad 'except Exception: pass/log' throughout the gateway, CLI, and session management layers creates unpredictable error behavior. A developer working in these areas cannot tell which failures are silently swallowed, which are logged at what severity, and which propagate -- because the same pattern is used for both expected optional-dependency failures and unexpected programming errors.",
+      "score_rationale": "The tool boundary and adapter layer show intentional error design, preventing this from being truly poor. But 139 bare except-and-pass blocks across 47 files, mixed print/logger usage for errors, and broad catches that mask programming bugs alongside IO errors represent significant drag. A developer making changes to session management or config loading cannot predict how errors propagate and would need to read each handler individually. This sits between the 60 (significant drag) and 70 (mixed) anchors, pulled up slightly by the well-designed tool and adapter error conventions."
+    },
+    "naming_quality": {
+      "dimension_character": "The codebase has a strong foundation of domain-aligned naming across its core subsystems -- gateway, agent, and tools layers use specific, intent-revealing names for classes, predicates, and constants. The main friction points are concentrated in two files: skills_hub.py uses a 'do_' prefix convention that strips domain context from action names, and web_tools.py uses 'process' as a verb for what is actually content summarization. These are isolated pockets rather than systemic patterns.",
+      "score_rationale": "Names are generally precise enough that a developer can predict behavior from names alone in most modules. The gateway layer, session management, and tool registry demonstrate consistently strong naming. The score lands at 82.5 because the do_ prefix pattern (8 functions in skills_hub.py) and the generic 'process_content_with_llm' represent recurring vocabulary drift from the codebase's otherwise domain-specific norms -- enough to occasionally slow a developer down but not enough to undermine trust in names overall."
+    },
+    "abstraction_fitness": {
+      "dimension_character": "The codebase generally favors direct, domain-aligned abstractions -- the tool registry pattern is clean, base classes have genuine extension pressure with multiple concrete implementations, and utils.py is small and focused rather than a generic dumping ground. However, the AIAgent constructor's ~40-parameter surface acts as an implicit configuration bag that accumulates features without structural boundaries, and the tools/__init__.py barrel export is largely redundant with the registry-based system. Duplicated cache utilities in the platform base show missed opportunities for abstraction where it would actually reduce code.",
+      "score_rationale": "The codebase is solid but uneven from an abstraction fitness perspective. Core patterns (tool registry, platform adapter hierarchy, environment base class) are well-designed and direct. The score is held back primarily by the AIAgent parameter bag which represents a recurring friction point for any developer constructing or modifying agent instances, and by the redundant tools/__init__.py barrel. These are not severe structural problems but represent enough inconsistency that a developer encounters 'why is this different?' moments. Anchoring at 76: mostly well-served but with recurring friction from the wide constructor and redundant re-export layer."
+    },
+    "dependency_health": {
+      "dimension_character": "The dependency set is reasonably well-organized with good use of optional extras for platform-specific packages and deferred imports for optional libraries. However, there is meaningful dependency drift: an unused core dependency (jinja2), three dependencies for a missing subproject bundled into core, and dual HTTP clients (requests and httpx) used for the same purpose across different modules. The requirements.txt convenience file has also diverged from the canonical pyproject.toml.",
+      "score_rationale": "The optional extras structure and deferred imports represent genuine positive design that would push toward 85+. However, the unused jinja2 dep, three orphaned mini-swe-agent deps in core, dual HTTP clients, and requirements.txt drift collectively represent the kind of 'why is this here?' friction that pulls toward the 80 anchor. The issues are not severe enough to materially hinder evolution (60 anchor), but a developer would encounter enough confusion to question trust in the dependency manifest, landing near 78."
+    },
+    "low_level_elegance": {
+      "dimension_character": "The codebase is sharply split: smaller utility and client modules exhibit clean, proportionate internals with flat control flow and clear intent. However, the gateway runner -- the central message processing pipeline -- contains a monolithic _handle_message method exceeding 700 lines with deep nesting and inline config loading boilerplate repeated across many sibling methods. This unevenness means a developer working in gateway/run.py faces substantially more friction than elsewhere.",
+      "score_rationale": "The positive patterns in utilities, data classes, and client modules are genuine strengths that serve developers well. However, the gateway runner's monolithic message handler with 5-level nesting, duplicated config loading boilerplate (11 occurrences), and the patch parser's repeated flush blocks represent significant low-level craft issues concentrated in high-traffic code paths. This pulls the score below 70 -- a developer would regularly encounter local complexity in the most important file that makes individual functions harder to follow than they should be."
+    },
+    "mid_level_elegance": {
+      "dimension_character": "The codebase has strong integration seams at its outer boundaries -- the platform adapter abstraction, control API, tool registry, and hook system are all clean, explicit, and well-separated. However, the central orchestration layer (GatewayRunner) is where these good boundaries converge into tangled, monolithic methods. Config reading is scattered across 20+ independent parse-and-extract sites for the same file, temporary agent construction is repeated with ad-hoc parameter variations, and the core message pipeline mixes every concern into a single 700-line method. A developer working at the platform or tool boundary would find quality strong; a developer modifying the gateway's core orchestration would encounter significant glue-code entropy and tangled back-and-forth patterns.",
+      "score_rationale": "The outer integration seams (adapters, control API, tool registry, hooks) are genuinely well-designed and would anchor the score at 80+. But the gateway orchestration core -- where all these seams meet -- has 20 repeated config parses, a monolithic _handle_message method, and inconsistent temporary-agent construction patterns. These are not isolated rough edges; they represent systemic glue-code entropy at the most critical integration point. The score lands around 62, reflecting significant drag on a developer working at the central orchestration layer, per the 60-anchor ('seam design is tangled; a developer making a cross-module change must understand surprising implicit contracts')."
+    },
+    "test_strategy": {
+      "dimension_character": "The test suite has strong foundations \u2014 a well-designed conftest with isolation and timeout guards, behavior-based assertions rather than snapshot overuse, and thorough coverage of newer features like autoreply. However, several of the highest-traffic production modules (gateway/run.py, tools/terminal_tool.py, hermes_cli/main.py, hermes_cli/auth.py, all 7 environment backends) have zero or minimal test coverage, representing over 15,000 lines of untested core logic. The widespread object.__new__ pattern for constructing test doubles of GatewayRunner creates structural fragility \u2014 any attribute added to GatewayRunner requires updating 9 test files.",
+      "score_rationale": "A developer making changes to the gateway runner pipeline, terminal tool, CLI entrypoints, or environment backends would have no test safety net. While the test suite covers many leaf modules well and has good infrastructure, the gaps are in the most critical, highest-traffic files. This puts the score near the 60 anchor ('meaningful risk goes unvalidated') with some lift from the strong coverage in other areas and the solid test infrastructure."
+    },
+    "api_surface_coherence": {
+      "dimension_character": "The codebase has a strong foundation of API coherence, particularly in its platform adapter interface where all 8 adapters faithfully implement the abstract base class with identical send/connect/disconnect signatures. The ToolRegistry and HermesControl client provide clean, predictable interfaces. However, there are isolated inconsistencies in the media cache utilities (different parameter semantics for similar functions) and some wide parameter lists at internal boundaries that create minor friction.",
+      "score_rationale": "The platform adapter hierarchy is exemplary \u2014 a developer seeing one adapter can predict all others. The tool registration and control API surfaces are similarly predictable. The score is pulled down from ~90 by the cache utility inconsistency (developers must check which cache function they're calling to know what the second param means), the wide build_source signature, and the use of untyped dict bags for autoreply config. These are localized issues in an otherwise coherent surface, placing this solidly above 80."
+    },
+    "authorization_consistency": {
+      "dimension_character": "Authorization in this codebase is architecturally strong: a single centralized enforcement point (_is_user_authorized in GatewayRunner) applies a consistent multi-layer auth chain across all six messaging platforms. The pairing system adds defense-in-depth with proper security controls. The control API surface is appropriately scoped to localhost with opt-in activation. The only friction a developer would encounter is that the allowlist env var names are repeated as string literals across setup, config, and migration code rather than being defined as shared constants.",
+      "score_rationale": "The auth patterns are uniformly applied with clear, documented exceptions (HomeAssistant bypass, control API localhost binding). A developer reviewing security would find a trustworthy, centralized enforcement model. The magic-string repetition of env var names is a minor maintainability concern that prevents a score above 90, but it does not create a security gap since the enforcement point is singular. This places the codebase solidly in the 'strong with minor friction' range."
+    },
+    "ai_generated_debt": {
+      "dimension_character": "The codebase is largely free of AI-generated noise in its core modules -- module docstrings are informative, comments explain non-obvious constraints, and logging is purposeful rather than ceremonial. However, two modules (toolsets.py and toolset_distributions.py) exhibit textbook LLM-hallmark patterns: verbose Args/Returns docstrings on trivial one-line functions, restating comments, and stale probability comments that contradict their actual values. The duplicated .env loading boilerplate across 7+ files is a cross-cutting instance of copied-verbatim code that a human would have extracted into a shared helper.",
+      "score_rationale": "The core codebase (gateway, agent/, tools/registry, hermes_state, hermes_time) is clean and purpose-driven, which would support a score in the high 80s. However, toolsets.py and toolset_distributions.py have concentrated docstring bloat and restating comments that a developer must wade through, and the stale mismatched comments in toolset_distributions.py are a reliability concern. The 7-file .env loading duplication adds a boilerplate tax that pulls the score into the high 70s -- a developer working here would encounter these patterns regularly in certain areas but find most of the codebase respectably clean."
+    },
+    "incomplete_migration": {
+      "dimension_character": "The codebase has several active migration zones \u2014 most notably the SQLite/JSONL dual-write for session transcripts and the legacy toolset name mapping \u2014 but they are consistently well-documented with clear comments explaining the 'why'. Deprecated symbols are marked but sometimes linger as dead parameters or fallback paths. The overall impression is of migrations that were started with clear intent but not fully concluded, leaving a moderate amount of old+new coexistence that a developer would need to navigate.",
+      "score_rationale": "The codebase earns credit for clearly documenting every backward-compat layer and having tests for legacy paths (e.g. TestLegacyToolsetMap, test_legacy_root_max_turns). However, the SQLite/JSONL dual-write is a subsystem-level incomplete migration with no timeline, the deprecated on_auto_reset parameter persists in the public API, and deprecated env vars are still read at runtime. These create moderate 'which pattern should I follow?' friction, placing this solidly in the 80-85 range."
+    },
+    "package_organization": {
+      "dimension_character": "The top-level package decomposition is sound \u2014 agent/, gateway/, hermes_cli/, tools/, and supporting packages map clearly to distinct domains, and gateway/platforms/ demonstrates good subdirectory design. However, the two largest production packages (tools/ at 39 files, hermes_cli/ at 26 files) are flat with mixed concerns, and the root directory accumulates peripheral scripts that share themes but are not grouped. A developer familiar with the codebase navigates well at the top level but must scan long file lists within tools/ and hermes_cli/.",
+      "score_rationale": "The clear top-level domain separation and correct placement of high-fan-in core files pull the score above the 60 threshold. However, the tools/ flat directory (39 files with identifiable subgroups like skills_*, infrastructure, and media tools), hermes_cli/ flat directory (26 files mixing subcommands, config, and display), and root-level stragglers represent recurring structural mismatches that place this firmly in the 70-range \u2014 a developer encounters enough placement friction to question where to find or add things within the two largest packages."
+    },
+    "initialization_coupling": {
+      "dimension_character": "The codebase shows deliberate awareness of initialization coupling risks in its core architecture: the tool registry has an explicit import chain designed to prevent circularity, hermes_constants.py is intentionally dependency-free, and expensive resources use lazy initialization patterns. However, the gateway subsystem relies on sys.path manipulation at import time across 6+ modules, and the two entry points (cli.py, gateway/run.py) perform significant environment mutation at module scope, which creates fragility for tests that import these modules.",
+      "score_rationale": "The score sits at 82.5 because the core tool/agent architecture is well-designed for import safety with documented patterns, but the gateway subsystem's reliance on sys.path.insert and the entry-point environment mutation at module scope represent recurring friction points. A developer working in the gateway or writing tests against it would encounter import-order sensitivity. The stale-snapshot constants in model_tools.py are a minor maintenance risk. These issues prevent a score above 85 but don't represent a systemic problem since the main agent/tool import chain is clean."
+    },
+    "design_coherence": {
+      "dimension_character": "The codebase shows a split personality on design coherence. Peripheral subsystems (tool registry, tool call parsers, agent submodules, platform adapters) demonstrate disciplined extraction and data-driven patterns. But the three central orchestration files (run_agent.py at 5725 LOC, cli.py at 5162 LOC, gateway/run.py at 4067 LOC) concentrate too many responsibilities and contain repeated structural patterns -- especially the config.yaml loading duplication and the monster run_conversation method. The gateway's media cache triplication in base.py is another clear example of structural repetition that should be abstracted.",
+      "score_rationale": "The positive patterns in the tool/parser registries and agent submodule extraction show the team knows how to do focused design, but the three largest files in the codebase all suffer from significant multi-responsibility accumulation. run_conversation at ~1470 lines is a genuine monster function mixing 5+ distinct concerns. The 11 independent config.yaml parses in one file and the triplicated cache code are textbook examples of patterns the dimension rubric targets. These issues pull the score well below 80 (solid-but-uneven) into the 60s territory where design decisions routinely obscure intent in the core orchestration layer."
+    },
+    "contract_coherence": {
+      "dimension_character": "The codebase demonstrates strong contract discipline in its core patterns: tool handlers use a consistent JSON error envelope, dataclass serialization follows uniform to_dict/from_dict conventions, and the MemoryStore API reliably returns success/error dicts. However, there are several return-type annotation lies where the declared type does not cover all return paths (get_toolset_info returning None, _deliver_to_platform returning SendResult instead of Dict), and a cluster of cache-directory getters that silently create directories as a side effect. These issues are localized rather than systemic.",
+      "score_rationale": "The positive patterns are pervasive and well-maintained -- the tool handler contract, dataclass serialization pattern, and error envelope convention are consistent across 20+ files. The defects (3 return-type lies, 3 getter-with-side-effects) are real but localized to specific modules. This puts the codebase solidly above the 60-mark (no significant drag on developers) but below 80 (the type annotation lies in toolsets.py and delivery.py could cause runtime surprises). Score of 74.5 reflects real but non-systemic contract violations against an otherwise disciplined backdrop."
+    },
+    "logic_clarity": {
+      "dimension_character": "Control flow in this codebase is generally direct and traceable. The main agent loop, gateway dispatch, and command handling follow straightforward branching without deep nesting or tangled logic. However, scattered across multiple modules are identical if/else branches that obscure intent, a dead code block with an always-false condition in checkpoint_manager, and an async function that misleadingly wraps blocking I/O. These are isolated instances rather than a systemic pattern.",
+      "score_rationale": "The codebase earns above-80 because a developer can mostly trace control flow without surprises, and no serious patterns of always-true conditions, dead code after returns, or boolean simplification issues exist. The score is held below 85 by four separate identical-branch patterns (telegram, uninstall, skills_sync, fuzzy_match), a dead code block with always-false condition in checkpoint_manager, duplicated dead code in cli.py, and a misleading async _send_email that blocks the event loop. These are all fixable with single-edit changes but span multiple files."
+    },
+    "type_safety": {
+      "dimension_character": "The codebase shows a split personality on type safety. Well-structured gateway dataclasses and the tool registry have careful Optional[] annotations and return types. However, the two largest classes (AIAgent in run_agent.py and SessionStore/PairingStore) have pervasive Optional-without-annotation parameters, and the two most-compared discriminator values (api_mode and SessionResetPolicy.mode) use bare str instead of Literal or Enum types, making it easy for typos to silently pass. The pattern of typing parameters as X but defaulting to None recurs across at least 15 parameters in production code.",
+      "score_rationale": "The consistent 'typed as X, defaults to None' anti-pattern affects core classes that drive the entire application (AIAgent, SessionStore, PairingStore). While this pattern is tolerated by Python's runtime, it makes static analysis unreliable and contradicts the annotation's promise. The lack of Literal types for the heavily-discriminated api_mode and reset policy mode compounds the issue -- these two strings control major code paths. Strong typing in the gateway dataclasses prevents this from being worse, but the AIAgent class alone (the central orchestrator) has roughly 10 such violations. Score of 52 reflects significant but not catastrophic type discipline issues: the annotations exist but frequently lie about nullability."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "bidirectional_root_hermes_cli_coupling",
+      "summary": "Root-level files and hermes_cli/ have 24 bidirectional import edges, creating a dependency cycle",
+      "confidence": "high",
+      "suggestion": "Extract CLI_CONFIG and other shared state into a dedicated config/state module (e.g., hermes_cli/runtime_state.py) that both cli.py and hermes_cli can import without circular dependency. Move model_tools helpers used by hermes_cli into a shared location.",
+      "related_files": [
+        "hermes_cli/callbacks.py",
+        "hermes_cli/main.py",
+        "hermes_cli/banner.py",
+        "hermes_cli/tools_config.py",
+        "cli.py"
+      ],
+      "evidence": [
+        "hermes_cli/callbacks.py line 23: 'from cli import CLI_CONFIG' -- hermes_cli reaches back into root cli.py",
+        "hermes_cli/main.py line 503: 'from cli import main as cli_main' -- entry point imports from root",
+        "hermes_cli/banner.py line 251: 'from model_tools import check_tool_availability' -- hermes_cli imports root model_tools",
+        "cli.py has 30+ imports from hermes_cli/ modules (skin_engine, banner, commands, callbacks, etc.)",
+        "Coupling matrix shows 13 edges . -> hermes_cli/ and 11 edges hermes_cli/ -> ."
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "tools_import_cli_config",
+      "summary": "tools/code_execution_tool.py and tools/delegate_tool.py import CLI_CONFIG from root cli.py",
+      "confidence": "high",
+      "suggestion": "Have the agent pass tool configuration down via the tool handler arguments or a config object, rather than having tools import from the CLI module. delegate_tool already has a fallback to hermes_cli.config.load_config() -- make that the primary path.",
+      "related_files": [
+        "tools/code_execution_tool.py",
+        "tools/delegate_tool.py",
+        "cli.py"
+      ],
+      "evidence": [
+        "tools/code_execution_tool.py line 656: 'from cli import CLI_CONFIG'",
+        "tools/delegate_tool.py line 649: 'from cli import CLI_CONFIG'",
+        "Tools are leaf modules that should receive configuration via parameters, not reach up to the CLI layer"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "registry_violates_own_contract",
+      "summary": "tools/registry.py imports _run_async from model_tools, contradicting its own documented import chain",
+      "confidence": "high",
+      "suggestion": "Move _run_async to a shared utility (e.g., agent/async_utils.py or tools/async_support.py) that sits below registry in the import chain, or have model_tools set an async runner on the registry during initialization.",
+      "related_files": [
+        "tools/registry.py",
+        "model_tools.py"
+      ],
+      "evidence": [
+        "tools/registry.py line 124: 'from model_tools import _run_async' -- deferred import of a private symbol",
+        "tools/registry.py docstring lines 7-8 explicitly states: 'tools/registry.py (no imports from model_tools or tool files)'"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "private_symbols_crossed_across_boundaries",
+      "summary": "Private functions/variables imported across package boundaries in 6+ locations",
+      "confidence": "high",
+      "suggestion": "Promote the most-used private symbols to public API by removing the underscore prefix (e.g., is_oauth_token, load_mcp_config). For _servers/_lock in mcp_tool, expose a proper API method (e.g., reload_mcp_config()) instead of sharing internal state.",
+      "related_files": [
+        "gateway/run.py",
+        "run_agent.py",
+        "hermes_cli/models.py",
+        "hermes_cli/doctor.py",
+        "gateway/channel_directory.py",
+        "agent/anthropic_adapter.py",
+        "tools/mcp_tool.py"
+      ],
+      "evidence": [
+        "gateway/run.py line 2813 imports _load_mcp_config, _servers, _lock from tools/mcp_tool",
+        "_is_oauth_token from agent/anthropic_adapter.py imported by run_agent.py (line 4726), hermes_cli/models.py (line 263), hermes_cli/doctor.py (line 501)",
+        "gateway/channel_directory.py line 120 imports _send_slack from tools/send_message_tool",
+        "Leading underscore convention signals 'internal' but these are used as de facto public API across packages"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "gateway_tools_bidirectional_coupling",
+      "summary": "gateway/ and tools/ have bidirectional import edges (13 total), blurring their boundary",
+      "confidence": "medium",
+      "suggestion": "Define a shared interface or constants module for the gateway/tools boundary. Move GATEWAY_SECRET_CAPTURE_UNSUPPORTED_MESSAGE to a shared location. For tools/send_message_tool.py, inject gateway dependencies (channel resolution, config) through the tool handler interface rather than importing them directly.",
+      "related_files": [
+        "gateway/run.py",
+        "gateway/channel_directory.py",
+        "gateway/platforms/telegram.py",
+        "gateway/platforms/discord.py",
+        "tools/send_message_tool.py",
+        "tools/skills_tool.py"
+      ],
+      "evidence": [
+        "gateway/run.py imports from tools/ in 15+ locations (process_registry, terminal_tool, approval, checkpoint_manager, mcp_tool, vision_tools, etc.)",
+        "tools/send_message_tool.py imports from gateway/ (channel_directory, config, mirror, status)",
+        "tools/skills_tool.py line 393 imports GATEWAY_SECRET_CAPTURE_UNSUPPORTED_MESSAGE from gateway/platforms/base.py",
+        "gateway/platforms/telegram.py imports tools.vision_tools; gateway/platforms/discord.py imports tools.approval"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "architectural_change"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "identifier": "agents_md_structure_drift",
+      "summary": "AGENTS.md project structure lists nonexistent acp_adapter/ and omits many real directories and files",
+      "confidence": "high",
+      "suggestion": "Update AGENTS.md project structure to remove acp_adapter/ and add the missing directories and key files. For large packages, listing representative files plus '...' is fine, but the top-level structure must be accurate.",
+      "related_files": [
+        "AGENTS.md"
+      ],
+      "evidence": [
+        "AGENTS.md line 57 references 'acp_adapter/' which does not exist in the repository",
+        "Missing from AGENTS.md structure: honcho_integration/, skills/, demo/, scripts/, hermes_constants.py, hermes_time.py, utils.py, toolset_distributions.py, trajectory_compressor.py, rl_cli.py, mini_swe_runner.py",
+        "agent/ listing omits anthropic_adapter.py, autoreply.py, insights.py, redact.py; hermes_cli/ listing omits 16 of 27 files; gateway/ listing omits 10 of 13 files"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "identifier": "monolithic_cli_py",
+      "summary": "cli.py (5,162 lines) concentrates interactive REPL, slash command handlers, and UI rendering in one file",
+      "confidence": "high",
+      "suggestion": "Extract slash command handler methods from HermesCLI into a separate module (e.g., cli_commands.py or a cli/ package) that the HermesCLI class delegates to. This would reduce cli.py to REPL orchestration and TUI management, which is its core responsibility.",
+      "related_files": [
+        "cli.py"
+      ],
+      "evidence": [
+        "cli.py contains the HermesCLI class starting at line 991 with all slash command handlers (_handle_rollback_command, _handle_paste_command, _handle_prompt_command, etc.)",
+        "The file includes prompt_toolkit TUI setup, threading, streaming display logic, and agent lifecycle management",
+        "Slash command handlers could be extracted to a dedicated module (similar to how hermes_cli/commands.py already defines command metadata)"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "identifier": "monolithic_run_agent",
+      "summary": "run_agent.py (5,725 lines) remains a monolith despite agent/ extraction, concentrating the entire AIAgent class",
+      "confidence": "medium",
+      "suggestion": "Continue the agent/ extraction: move conversation loop logic, streaming/response handling, and session persistence into focused modules within agent/. The AIAgent class should become a thin orchestrator that composes these extracted modules.",
+      "related_files": [
+        "run_agent.py",
+        "agent/__init__.py"
+      ],
+      "evidence": [
+        "agent/__init__.py explicitly states these are 'extracted modules from run_agent.py' -- the extraction started but left the 5.7K line core intact",
+        "AIAgent class (line 205) contains conversation loop, model selection, context management, tool dispatch, streaming, and session persistence",
+        "The agent/ package has 12 focused modules averaging ~350 lines each, showing the target granularity is achievable"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "architectural_change"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "identifier": "monolithic_gateway_run",
+      "summary": "gateway/run.py (4,067 lines) concentrates message routing, slash commands, model resolution, and cron ticker",
+      "confidence": "medium",
+      "suggestion": "Extract gateway slash command handlers into gateway/commands.py and model/provider resolution logic into gateway/model_resolution.py. The GatewayRunner should focus on adapter lifecycle and message routing.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "GatewayRunner class (line 215) handles adapter lifecycle, message dispatch, slash command processing, model resolution, cron ticking, and control API integration",
+        "Other gateway modules are well-decomposed (config.py 483L, session.py 813L, delivery.py 344L, pairing.py 282L) showing the target granularity",
+        "The file has 4,067 lines while its sibling modules average ~300 lines"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "high_level_elegance",
+      "identifier": "flat_root_mixed_concerns",
+      "summary": "13 top-level Python files mix production agent code with research/RL infrastructure without clear separation",
+      "confidence": "low",
+      "suggestion": "Move batch_runner.py, trajectory_compressor.py, rl_cli.py, mini_swe_runner.py, and toolset_distributions.py into a dedicated research/ or training/ package. This would clarify the production vs research boundary and reduce top-level clutter from 13 to 8 files.",
+      "related_files": [
+        "batch_runner.py",
+        "trajectory_compressor.py",
+        "rl_cli.py",
+        "mini_swe_runner.py",
+        "toolset_distributions.py"
+      ],
+      "evidence": [
+        "Production code (cli.py, run_agent.py, model_tools.py, hermes_state.py) sits alongside research/RL code (batch_runner.py, trajectory_compressor.py, rl_cli.py, mini_swe_runner.py, toolset_distributions.py) at the top level",
+        "A new engineer cannot tell from directory listing alone which files are production vs research infrastructure",
+        "The environments/ package is also RL-specific but gets no special treatment in the project structure"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "platform_sys_path_split",
+      "summary": "4 of 7 platform adapters use sys.path.insert while 3 import directly \u2014 inconsistent sibling convention",
+      "confidence": "high",
+      "suggestion": "Remove the sys.path.insert calls from telegram.py, discord.py, slack.py, and whatsapp.py to match the direct-import convention used by signal.py, email.py, and homeassistant.py. The gateway package is already importable via normal Python path resolution when running through the entry points.",
+      "related_files": [
+        "gateway/platforms/telegram.py",
+        "gateway/platforms/discord.py",
+        "gateway/platforms/slack.py",
+        "gateway/platforms/whatsapp.py",
+        "gateway/platforms/signal.py",
+        "gateway/platforms/email.py",
+        "gateway/platforms/homeassistant.py"
+      ],
+      "evidence": [
+        "telegram.py, discord.py, slack.py, whatsapp.py all have sys.path.insert(0, str(_Path(__file__).resolve().parents[2])) before importing from gateway.config",
+        "signal.py, email.py, homeassistant.py import from gateway.config and gateway.platforms.base directly without sys.path manipulation",
+        "All 7 files are siblings in the same directory importing the same upstream modules"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "check_ha_requirements_naming",
+      "summary": "check_ha_requirements uses abbreviated name while all 6 other adapters use full platform name",
+      "confidence": "high",
+      "suggestion": "Rename check_ha_requirements to check_homeassistant_requirements to match the naming convention used by all other platform adapters. Update the 1-2 call sites accordingly.",
+      "related_files": [
+        "gateway/platforms/homeassistant.py"
+      ],
+      "evidence": [
+        "homeassistant.py: def check_ha_requirements() -> bool",
+        "All other adapters: check_telegram_requirements, check_discord_requirements, check_slack_requirements, check_whatsapp_requirements, check_signal_requirements, check_email_requirements"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "convention_outlier",
+      "identifier": "large_tools_init_barrel",
+      "summary": "tools/__init__.py is a 264-line re-export barrel that consumers largely bypass via direct imports",
+      "confidence": "medium",
+      "suggestion": "Slim tools/__init__.py down to minimal re-exports or just the package docstring. Since the registry pattern handles tool discovery and consumers already import directly from submodules, the large barrel adds maintenance burden without value.",
+      "related_files": [
+        "tools/__init__.py"
+      ],
+      "evidence": [
+        "tools/__init__.py re-exports 60+ symbols from 15+ tool modules across 264 lines",
+        "Actual consumers (gateway/run.py, model_tools.py, cron/scheduler.py, tests) import directly from tools.<module> rather than through the barrel",
+        "The registry.register() pattern at module scope is the real tool discovery mechanism, making the barrel redundant"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "broad_except_pass_config_loading",
+      "summary": "gateway/run.py has 30 'except Exception: pass' blocks, mostly around config.yaml parsing",
+      "confidence": "high",
+      "suggestion": "Extract a shared helper like '_read_config_key(dotted_path, default)' that catches only (OSError, yaml.YAMLError, KeyError, TypeError) and returns the default. This replaces ~10 identical try/except blocks with one call each, narrowing the catch scope and eliminating code duplication.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "Lines 133, 210, 437, 465, 503, 524, 547, 574, 596, 616 all follow the same pattern: read config.yaml, catch Exception, pass. These catch AttributeError, TypeError, and other programming errors alongside expected IOError/YAMLError."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "cli_broad_except_pass",
+      "summary": "cli.py has 21 'except Exception: pass' blocks silently swallowing errors",
+      "confidence": "high",
+      "suggestion": "Narrow each catch to the specific expected exception (ImportError for optional imports, OSError for file reads, ValueError for parsing). For the UI-optional blocks, at minimum log at debug level rather than silently passing.",
+      "related_files": [
+        "cli.py"
+      ],
+      "evidence": [
+        "Lines 448, 452, 457, 1153, 1239, 1400, 1600, 1912, 2167, 2658, 2743, 3328 all catch Exception and pass. Many protect optional UI features (skin loading, banner display) but the broad catch prevents detection of real bugs in those paths."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "mixed_logging_for_errors",
+      "summary": "Error logging inconsistently uses print(), logger.debug(), logger.warning(), and logger.error()",
+      "confidence": "high",
+      "suggestion": "Replace print() error reporting with logger.warning() throughout gateway/session.py and gateway/platforms/base.py. Promote SQLite operation failures from logger.debug() to logger.warning() since database issues should be visible in normal operation.",
+      "related_files": [
+        "gateway/session.py",
+        "gateway/platforms/base.py",
+        "gateway/run.py",
+        "gateway/mirror.py"
+      ],
+      "evidence": [
+        "gateway/session.py uses print() for session warnings (lines 350, 367, 562) despite having a logger defined at module scope",
+        "gateway/platforms/base.py line 836 uses print() + traceback.print_exc() while the same file uses logger.error() for image send failures on line 775",
+        "gateway/session.py SQLite failures logged at debug level (line 531, 591, 607, 636, 664, 720, 747, 764) making database issues invisible in production"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "session_db_errors_invisible",
+      "summary": "All SQLite session DB operations log failures at debug level, hiding database problems",
+      "confidence": "high",
+      "suggestion": "Catch sqlite3.Error specifically instead of Exception. Log first occurrence per session at warning level, then suppress subsequent failures for the same session to avoid log spam. This preserves the graceful-degradation pattern while making the initial failure visible.",
+      "related_files": [
+        "gateway/session.py"
+      ],
+      "evidence": [
+        "12 except Exception blocks in gateway/session.py (lines 349, 366, 491, 530, 561, 591, 607, 635, 663, 720, 747, 764) catch all exceptions from DB operations. Most log at debug level. If the database is corrupted or the schema drifts, these failures accumulate silently while the system appears to work using JSONL fallback."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "no_domain_exceptions",
+      "summary": "Only one custom exception class (AuthError) exists; all other error paths use bare Exception or stdlib types",
+      "confidence": "medium",
+      "suggestion": "Add a small set of domain exceptions: GatewayConfigError (for config loading), SessionError (for session store failures). These let catch blocks be specific without explosion of exception types. Start with the 2-3 most impactful boundaries where broad catches currently mask bugs.",
+      "related_files": [
+        "hermes_cli/auth.py",
+        "gateway/session.py",
+        "gateway/run.py",
+        "tools/send_message_tool.py"
+      ],
+      "evidence": [
+        "AuthError in hermes_cli/auth.py is well-designed with provider, code, and relogin_required fields. But the rest of the codebase raises ValueError, RuntimeError, or LookupError generically. Gateway code has no SessionError or ConfigError. Tool code has no ToolExecutionError. This means callers cannot catch domain-specific failures."
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "naming_quality",
+      "identifier": "generic_process_verb_web_tools",
+      "summary": "process_content_with_llm uses generic 'process' verb -- actually summarizes web content",
+      "confidence": "medium",
+      "suggestion": "Rename to summarize_web_content or extract_web_summary to communicate the summarization intent. The function is called from within the same module, so the rename is low-risk.",
+      "related_files": [
+        "tools/web_tools.py"
+      ],
+      "evidence": [
+        "process_content_with_llm on line 91 of web_tools.py creates 'intelligent summaries with key excerpts' from web page content, but the name suggests generic processing"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "naming_quality",
+      "identifier": "do_prefix_skills_hub",
+      "summary": "do_ prefix on 8 skills_hub.py functions adds no information and obscures domain",
+      "confidence": "medium",
+      "suggestion": "Rename to search_skills, browse_skills, install_skill, inspect_skill, list_skills, audit_skill, uninstall_skill, tap_registry, publish_skill. These names communicate both the action and the domain (skills) consistently with the codebase's naming style.",
+      "related_files": [
+        "hermes_cli/skills_hub.py"
+      ],
+      "evidence": [
+        "do_search, do_browse, do_install, do_inspect, do_list, do_audit, do_uninstall, do_tap, do_publish -- all prefixed with 'do_' which conveys no additional meaning beyond the verb that follows it",
+        "Contrast with the rest of the codebase which uses domain-qualified names: build_channel_directory, scan_skill_commands, build_skill_invocation_message"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "aiagent_wide_constructor",
+      "summary": "AIAgent.__init__ accepts ~40 parameters acting as an implicit configuration bag",
+      "confidence": "high",
+      "suggestion": "Group related parameters into typed config dataclasses: ProviderConfig (providers_allowed/ignored/order/sort/require_parameters/data_collection), CallbackConfig (tool_progress/thinking/reasoning/clarify/step callbacks), SessionConfig (session_id/session_db/honcho_*), FeatureFlags (save_trajectories/skip_context_files/skip_memory/checkpoints_enabled). Constructor becomes AIAgent(model, provider_config, callbacks, session_config, features).",
+      "related_files": [
+        "run_agent.py"
+      ],
+      "evidence": [
+        "AIAgent.__init__ (run_agent.py:213-257) has parameters spanning API config (base_url, api_key, provider, api_mode), provider routing (providers_allowed, providers_ignored, providers_order, provider_sort, provider_require_parameters, provider_data_collection), callbacks (tool_progress_callback, thinking_callback, reasoning_callback, clarify_callback, step_callback), session management (session_id, session_db, honcho_session_key, honcho_manager, honcho_config), and feature flags (save_trajectories, skip_context_files, skip_memory, checkpoints_enabled, pass_session_id)",
+        "Each new feature adds another parameter rather than grouping related concerns into config dataclasses"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "tools_init_redundant_barrel",
+      "summary": "tools/__init__.py re-exports 81+ symbols redundant with registry-based tool discovery",
+      "confidence": "medium",
+      "suggestion": "Reduce tools/__init__.py to only re-export the truly public symbols needed by external callers (if any exist beyond model_tools.py). Most callers should import from model_tools or directly from the specific tool module.",
+      "related_files": [
+        "tools/__init__.py"
+      ],
+      "evidence": [
+        "tools/__init__.py (264 LOC) manually imports and re-exports 81+ symbols from individual tool modules",
+        "model_tools.py already provides the public API (get_tool_definitions, handle_function_call) via tools.registry, making the __init__.py barrel largely unused for production imports",
+        "The barrel must be manually kept in sync with new tool additions, creating maintenance burden without clear benefit"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "triplicated_cache_utilities",
+      "summary": "Image, audio, and document cache utilities in base.py repeat the same pattern three times",
+      "confidence": "high",
+      "suggestion": "Extract a MediaCache class or factory function parameterized by (cache_dir, default_ext, accept_header) that generates all three variants, or a single cache_from_bytes(data, cache_type, ext) function. The document variant adds filename sanitization which can be an optional parameter.",
+      "related_files": [
+        "gateway/platforms/base.py"
+      ],
+      "evidence": [
+        "gateway/platforms/base.py defines get_image_cache_dir/cache_image_from_bytes/cache_image_from_url/cleanup_image_cache (lines 49-118), then near-identical get_audio_cache_dir/cache_audio_from_bytes/cache_audio_from_url (lines 131-177), then get_document_cache_dir/cache_document_from_bytes/cleanup_document_cache (lines 199-255)",
+        "Each set follows the same structure: mkdir-ensure, uuid-filename, write bytes, return path. Only the directory name, default extension, and content-type header differ"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "unused_jinja2_dep",
+      "summary": "jinja2 is a core dependency but is never imported or used anywhere in the codebase",
+      "confidence": "high",
+      "suggestion": "Remove jinja2 from dependencies in pyproject.toml and requirements.txt. If it was intended for future template rendering, add it back when actually needed.",
+      "related_files": [
+        "pyproject.toml",
+        "requirements.txt"
+      ],
+      "evidence": [
+        "grep for 'jinja' across all .py files returns zero results outside pyproject.toml and requirements.txt"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "orphaned_mini_swe_deps",
+      "summary": "litellm, typer, and platformdirs are core deps for mini-swe-agent but that subproject directory is empty",
+      "confidence": "high",
+      "suggestion": "Move litellm, typer, and platformdirs to a new optional extra (e.g. [mini-swe]) or remove them from core dependencies until mini-swe-agent is actually present. The terminal tool already handles the missing import gracefully.",
+      "related_files": [
+        "pyproject.toml",
+        "requirements.txt"
+      ],
+      "evidence": [
+        "mini-swe-agent/ directory contains only . and .. (empty)",
+        "litellm, typer, and platformdirs have zero imports in any project .py file",
+        "pyproject.toml comment says '# mini-swe-agent deps (terminal tool)'"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "dual_http_clients",
+      "summary": "Both requests and httpx are core dependencies used for the same purpose (synchronous HTTP calls)",
+      "confidence": "medium",
+      "suggestion": "Consolidate on httpx since it is already the dominant client (66 vs 6 call sites) and supports both sync and async usage. Replace the 6 requests.post/get calls in browser_tool.py and model_metadata.py with httpx equivalents, then remove requests from dependencies.",
+      "related_files": [
+        "tools/browser_tool.py",
+        "agent/model_metadata.py",
+        "tools/skills_hub.py",
+        "hermes_cli/auth.py"
+      ],
+      "evidence": [
+        "requests used in browser_tool.py (5 calls) and model_metadata.py (1 call)",
+        "httpx used extensively in hermes_cli/ and tools/skills_hub.py (66+ call sites)",
+        "Both are synchronous HTTP client libraries serving the same fundamental need"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "requirements_txt_drift",
+      "summary": "requirements.txt has diverged from canonical pyproject.toml: includes messaging extras as core, missing anthropic",
+      "confidence": "high",
+      "suggestion": "Either regenerate requirements.txt from pyproject.toml to match the canonical source, or delete it entirely since pyproject.toml is the canonical dependency list and the file header already directs users to 'pip install -e .[all]'.",
+      "related_files": [
+        "requirements.txt",
+        "pyproject.toml"
+      ],
+      "evidence": [
+        "requirements.txt includes aiohttp>=3.9.0, discord.py>=2.0, python-telegram-bot>=20.0 as core deps; pyproject.toml correctly puts these in [messaging] optional extra",
+        "requirements.txt is missing anthropic which is in pyproject.toml core deps",
+        "File header says 'maintained for convenience only' but has drifted from canonical source"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "low_level_elegance",
+      "identifier": "handle_message_monolith",
+      "summary": "_handle_message in gateway/run.py is ~720 lines with deeply nested session hygiene logic",
+      "confidence": "high",
+      "suggestion": "Extract the session hygiene auto-compress logic (lines 1166-1367) into a dedicated method like _auto_compress_if_needed(history, session_entry, source) that returns the possibly-compressed history. Similarly extract the media enrichment block (lines 1405-1470) and the transcript-saving block (lines 1543-1604) into their own methods. This would reduce _handle_message to a readable orchestration sequence of ~200 lines.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "_handle_message spans lines 912-1633, mixing authorization, command dispatch, media enrichment, session hygiene auto-compression (~200 lines at 5 nesting levels), transcript persistence, and auto-reply scheduling",
+        "The session hygiene section (lines 1166-1367) has nested try/except containing nested if/await/try/except/if/try/await blocks"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "low_level_elegance",
+      "identifier": "repeated_config_yaml_loading",
+      "summary": "config.yaml loading boilerplate duplicated 11 times across gateway/run.py methods",
+      "confidence": "high",
+      "suggestion": "Add a module-level helper like _load_config_yaml() -> dict that loads and caches ~/.hermes/config.yaml once, then replace all 11 inline load-and-parse blocks with calls to that helper. Each _load_* method would become a simple dict traversal.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "_load_prefill_messages, _load_ephemeral_system_prompt, _load_reasoning_config, _load_show_reasoning, _load_background_notifications_mode, _load_provider_routing, _load_fallback_model, _resolve_gateway_model, _run_agent (twice), and the session hygiene block all repeat: import yaml; open(cfg_path); yaml.safe_load(f) with identical try/except Exception: pass wrapping"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "low_level_elegance",
+      "identifier": "patch_parser_duplicated_flush",
+      "summary": "parse_v4a_patch duplicates the 'save previous operation' block 4 times identically",
+      "confidence": "high",
+      "suggestion": "Extract a local helper _flush_current_op(current_op, current_hunk, operations) that performs the flush-and-append, then call it at each transition point. This removes 12 lines of duplication and makes the state machine transitions clearer.",
+      "related_files": [
+        "tools/patch_parser.py"
+      ],
+      "evidence": [
+        "Lines 117-120, 129-132, 140-143, and 155-158 all contain the identical pattern: if current_op: if current_hunk and current_hunk.lines: current_op.hunks.append(current_hunk); operations.append(current_op)"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "low_level_elegance",
+      "identifier": "defensive_hasattr_after_init",
+      "summary": "_get_or_create_gateway_honcho uses hasattr checks for attributes initialized in __init__",
+      "confidence": "high",
+      "suggestion": "Remove the two hasattr guards (lines 323-326) since these attributes are guaranteed to exist after __init__.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "Lines 323-326: 'if not hasattr(self, \"_honcho_managers\"): self._honcho_managers = {}' -- but _honcho_managers is always set in __init__ on line 257"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "scattered_config_yaml_parsing",
+      "summary": "gateway/run.py re-parses config.yaml 20+ times in independent methods instead of using a shared config object",
+      "confidence": "high",
+      "suggestion": "Create a GatewayConfig.from_yaml() or extend the existing load_gateway_config() to eagerly parse all config.yaml keys into typed fields at startup. Each method then reads from the config object instead of re-parsing YAML. For hot-reloading, add a refresh() method that re-reads once and updates all fields atomically.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "20 independent yaml.safe_load() calls across _load_reasoning_config, _load_show_reasoning, _load_provider_routing, _load_fallback_model, _load_background_notifications_mode, _run_agent (toolset config, progress config), _resolve_gateway_model, session hygiene, and others",
+        "Each method independently opens config.yaml, parses it, and extracts its own keys -- the config translation boundary is duplicated in every method rather than happening in one place"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "monolithic_handle_message",
+      "summary": "_handle_message is a 700+ line method mixing authorization, command dispatch, media enrichment, and agent orchestration",
+      "confidence": "high",
+      "suggestion": "Extract the major phases into focused methods: _authorize_user(event) -> bool, _dispatch_command(event) -> Optional[str], _enrich_media(event, message_text) -> str, _persist_transcript(session_entry, ...). The top-level _handle_message becomes a ~50-line pipeline that composes these steps. This reduces the cognitive load of any single method without adding indirection layers.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "_handle_message (line ~912) handles: user authorization and pairing, interrupt detection, command dispatch via 20+ if/elif chains, quick commands, skill commands, exec approval, session creation, context prompt building, auto-reset notices, session hygiene compression, image/audio/document enrichment, agent invocation, transcript persistence, autoreply scheduling -- all inline in one method",
+        "The orchestration does not read as composition of collaborators; each concern is woven into the linear flow with direct attribute access and inline try/except blocks"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "ad_hoc_temporary_agent_construction",
+      "summary": "Temporary AIAgent instances are constructed in 4+ places with inconsistent initialization parameters",
+      "confidence": "high",
+      "suggestion": "Add a GatewayRunner._create_utility_agent(session_id, toolsets, max_iterations) helper that encapsulates the common pattern: resolve model, resolve runtime kwargs, construct AIAgent with quiet_mode=True. The 3 utility sites call this instead of duplicating construction. The main _run_agent stays separate since it has many additional concerns.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "_flush_memories_for_session creates AIAgent with max_iterations=8, enabled_toolsets=['memory', 'skills']",
+        "_handle_compress_command creates AIAgent with max_iterations=4, enabled_toolsets=['memory']",
+        "Session hygiene creates AIAgent with max_iterations=4, enabled_toolsets=['memory']",
+        "_run_agent creates the real agent with max_iterations from env, full toolset, provider routing, honcho integration, callbacks, etc.",
+        "Each site independently resolves model via _resolve_gateway_model() and runtime kwargs via _resolve_runtime_agent_kwargs(), with slightly different error handling"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "mid_level_elegance",
+      "identifier": "hasattr_on_init_attributes",
+      "summary": "_get_or_create_gateway_honcho uses hasattr() to check attributes that __init__ already sets",
+      "confidence": "high",
+      "suggestion": "Remove the hasattr/getattr guards since __init__ guarantees these attributes exist. The defensive checks obscure the actual contract and suggest the object might be in a partially-initialized state, which is not the case.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "Line 323-326: 'if not hasattr(self, \"_honcho_managers\"): self._honcho_managers = {}' despite __init__ (line 257) already setting self._honcho_managers = {}",
+        "Same pattern for _honcho_configs. _shutdown_gateway_honcho also uses 'getattr(self, \"_honcho_managers\", None)' defensively"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "gateway_run_untested_pipeline",
+      "summary": "gateway/run.py (4067 lines, 26 importers) lacks dedicated test coverage for its core _handle_message pipeline",
+      "confidence": "high",
+      "suggestion": "Add a test_gateway_run.py with tests for _handle_message dispatch (command routing, agent launch flow, error paths). Consider extracting a factory method or builder for GatewayRunner to reduce test setup boilerplate.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "gateway/run.py is the central orchestrator imported by 26 modules",
+        "Individual command tests exist (autoreply, background, title, update, etc.) but the _handle_message dispatch pipeline is only tested once in test_session_hygiene.py",
+        "No tests for the main message routing, agent launch, or error recovery paths"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "terminal_tool_zero_tests",
+      "summary": "tools/terminal_tool.py (1266 lines, 12 importers) has zero test coverage",
+      "confidence": "high",
+      "suggestion": "Add tests/tools/test_terminal_tool.py covering command execution, timeout enforcement, output truncation, and error handling. The local environment backend can be tested without external dependencies.",
+      "related_files": [
+        "tools/terminal_tool.py"
+      ],
+      "evidence": [
+        "No test_terminal_tool.py exists anywhere in the test tree",
+        "The terminal tool is the primary execution primitive \u2014 command execution, timeout handling, output capture"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "object_new_fragility",
+      "summary": "9 test files bypass GatewayRunner.__init__ via object.__new__, creating fragile coupling to internal attributes",
+      "confidence": "high",
+      "suggestion": "Extract a shared _make_runner() fixture in tests/gateway/conftest.py that constructs a properly initialized GatewayRunner with a test config. Alternatively, add a GatewayRunner.for_testing() classmethod that sets safe defaults.",
+      "related_files": [
+        "tests/gateway/test_autoreply_command.py",
+        "tests/gateway/test_background_command.py",
+        "tests/gateway/test_honcho_lifecycle.py",
+        "tests/gateway/test_session_hygiene.py",
+        "tests/gateway/test_run_progress_topics.py",
+        "tests/gateway/test_update_command.py",
+        "tests/gateway/test_title_command.py",
+        "tests/gateway/test_resume_command.py",
+        "tests/gateway/test_control_api.py"
+      ],
+      "evidence": [
+        "Each _make_runner() manually sets 8-12 internal attributes (adapters, _session_db, _reasoning_config, _provider_routing, _running_agents, etc.)",
+        "Adding a new attribute to GatewayRunner.__init__ breaks all 9 test files",
+        "Different test files set different subsets of attributes, making it unclear which are actually needed"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "cli_entry_points_untested",
+      "summary": "hermes_cli/main.py (3149 lines) and hermes_cli/auth.py (2092 lines) have zero test coverage",
+      "confidence": "high",
+      "suggestion": "Add tests for the critical paths: CLI command dispatch in main.py (at minimum, argument parsing and session creation) and provider resolution logic in auth.py.",
+      "related_files": [
+        "hermes_cli/main.py",
+        "hermes_cli/auth.py"
+      ],
+      "evidence": [
+        "No test files exist for these modules",
+        "hermes_cli/main.py contains the entire CLI command dispatch including session management, model selection, and conversation flow",
+        "hermes_cli/auth.py handles API key resolution, provider selection, and credential management"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "environment_backends_untested",
+      "summary": "6 of 7 tools/environments/ backends (local, docker, modal, ssh, singularity, base) have no unit tests",
+      "confidence": "medium",
+      "suggestion": "Add tests/tools/test_local_environment.py covering execute(), timeout handling, and working directory behavior. The local backend can be tested directly without external dependencies.",
+      "related_files": [
+        "tools/environments/local.py",
+        "tools/environments/docker.py",
+        "tools/environments/modal.py",
+        "tools/environments/ssh.py",
+        "tools/environments/singularity.py",
+        "tools/environments/base.py"
+      ],
+      "evidence": [
+        "Only test_daytona_environment.py and test_modal_terminal.py exist as integration tests",
+        "tools/environments/local.py is the default execution backend used by all local installations",
+        "No tests verify command sandboxing, timeout behavior, or output handling for the local backend"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "cache_param_inconsistency",
+      "summary": "cache_document_from_bytes takes filename while sibling functions take ext \u2014 inconsistent parameter semantics",
+      "confidence": "medium",
+      "suggestion": "Unify the second parameter across all three functions. cache_document_from_bytes legitimately needs a filename (not just extension) for human-readable names. The simplest fix is to add an optional filename parameter to the image/audio variants too, or document the intentional divergence with a comment explaining why documents differ.",
+      "related_files": [
+        "gateway/platforms/base.py"
+      ],
+      "evidence": [
+        "cache_image_from_bytes(data: bytes, ext: str = '.jpg') at line 55",
+        "cache_audio_from_bytes(data: bytes, ext: str = '.ogg') at line 137",
+        "cache_document_from_bytes(data: bytes, filename: str) at line 205 \u2014 second param is a full filename, not an extension"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "build_source_wide_params",
+      "summary": "build_source() has 9 parameters \u2014 consider grouping related identity fields",
+      "confidence": "low",
+      "suggestion": "This is borderline \u2014 the function serves as a thin factory that injects self.platform. Since all parameters are optional kwargs and callers use keyword syntax, the practical impact is low. If it grows further, consider accepting a partial SessionSource or a dict. No urgent change needed.",
+      "related_files": [
+        "gateway/platforms/base.py"
+      ],
+      "evidence": [
+        "build_source at line 858 takes: chat_id, chat_name, chat_type, user_id, user_name, thread_id, chat_topic, user_id_alt, chat_id_alt \u2014 8 keyword args plus self",
+        "All callers use keyword arguments and most pass 4-6 of the 8, so the width is manageable but the method is essentially a SessionSource constructor proxy"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "autoreply_config_untyped_dict",
+      "summary": "Autoreply configuration uses Dict[str, Any] instead of a typed structure",
+      "confidence": "medium",
+      "suggestion": "Define an AutoreplyConfig dataclass with prompt: str, model: Optional[str], max_turns: int, turn_count: int fields. This makes the API shape explicit and prevents key typos. The dataclass can live in gateway/run.py near the usage site.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "_autoreply_configs: Dict[str, Dict[str, Any]] at line 278 stores {prompt, model, max_turns, turn_count} as an untyped dict",
+        "Accessed via .get() with implicit key assumptions at lines 282-289, 1475, 1608, 1616, 2033, 2039"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "authorization_consistency",
+      "identifier": "allowlist_env_var_magic_strings",
+      "summary": "Allowlist env var names repeated as magic strings across 6+ files instead of shared constants",
+      "confidence": "medium",
+      "suggestion": "Define a dict mapping Platform enum values to their env var names (e.g., PLATFORM_ALLOWLIST_VARS = {Platform.TELEGRAM: 'TELEGRAM_ALLOWED_USERS', ...}) in gateway/config.py, and import it everywhere these strings appear. This centralizes the mapping and prevents drift if a new platform is added.",
+      "related_files": [
+        "gateway/run.py",
+        "hermes_cli/setup.py",
+        "hermes_cli/gateway.py",
+        "hermes_cli/config.py",
+        "gateway/platforms/discord.py"
+      ],
+      "evidence": [
+        "gateway/run.py lines 632-634 and 865-870 define platform_env_map with literal strings like 'TELEGRAM_ALLOWED_USERS'",
+        "hermes_cli/setup.py lines 1876, 1955, 2045 use the same strings independently",
+        "hermes_cli/gateway.py lines 443, 471, 504, 542 repeat them again",
+        "gateway/platforms/discord.py line 97 uses 'DISCORD_ALLOWED_USERS' directly"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "toolsets_docstring_bloat",
+      "summary": "toolsets.py has verbose multi-section docstrings on trivial 1-2 line functions",
+      "confidence": "high",
+      "suggestion": "Replace verbose Args/Returns docstrings with single-line docstrings. For example, get_toolset() needs only: \"\"\"Return toolset definition by name, or None.\"\"\" -- the types are already in the signature annotations.",
+      "related_files": [
+        "toolsets.py"
+      ],
+      "evidence": [
+        "get_toolset() is 'return TOOLSETS.get(name)' with 10-line Args/Returns docstring",
+        "get_all_toolsets() is 'return TOOLSETS.copy()' with 6-line docstring",
+        "get_toolset_names() is 'return list(TOOLSETS.keys())' with 6-line docstring",
+        "validate_toolset() has 8-line docstring for 2-line body",
+        "validate_distribution() in toolset_distributions.py mirrors the same pattern"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "toolsets_restating_comments",
+      "summary": "toolsets.py contains inline comments that restate the code without adding insight",
+      "confidence": "high",
+      "suggestion": "Delete these restating comments. The code is self-explanatory -- 'return TOOLSETS.get(name)' does not need a '# Return toolset definition' caption.",
+      "related_files": [
+        "toolsets.py"
+      ],
+      "evidence": [
+        "Line 311: '# Return toolset definition' above 'return TOOLSETS.get(name)'",
+        "Line 349: '# Get toolset definition' above 'toolset = TOOLSETS.get(name)'",
+        "Line 354: '# Collect direct tools' above 'tools = set(toolset.get(\"tools\", []))'",
+        "Line 342: '# Check for cycles' above 'if name in visited:'"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "stale_probability_comments",
+      "summary": "toolset_distributions.py has inline probability comments that contradict their actual values",
+      "confidence": "high",
+      "suggestion": "Remove all these inline probability comments -- the numeric values are self-documenting and the stale comments are actively misleading. If comments are kept, they should describe the reasoning for the weight, not restate the number.",
+      "related_files": [
+        "toolset_distributions.py"
+      ],
+      "evidence": [
+        "Line 48: 'image_gen: 90,  # 80% chance of image generation tools' (90 != 80)",
+        "Line 49: 'vision: 90,  # 60% chance of vision tools' (90 != 60)",
+        "Line 50: 'web: 55,  # 40% chance of web tools' (55 != 40)",
+        "Line 201: 'web: 97,  # 15% chance' (97 != 15)",
+        "Line 202: 'browser: 75,  # 10% chance' (75 != 10)"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "ai_generated_debt",
+      "identifier": "dotenv_loading_boilerplate",
+      "summary": "Identical .env loading try/except boilerplate duplicated across 7+ entry-point files",
+      "confidence": "high",
+      "suggestion": "Extract a shared load_hermes_env() helper (e.g., in hermes_constants.py or a new hermes_bootstrap.py) that encapsulates the env file resolution, encoding fallback, and MSWEA_GLOBAL_CONFIG_DIR setup. Each entry point then calls one function instead of duplicating 10+ lines.",
+      "related_files": [
+        "cli.py",
+        "run_agent.py",
+        "gateway/run.py",
+        "hermes_cli/main.py",
+        "hermes_cli/doctor.py",
+        "rl_cli.py",
+        "cron/scheduler.py"
+      ],
+      "evidence": [
+        "The pattern 'try: load_dotenv(..., encoding=\"utf-8\") except UnicodeDecodeError: load_dotenv(..., encoding=\"latin-1\")' appears identically in all 7 files",
+        "Several files also share the _hermes_home / _user_env / _project_env variable setup before the dotenv call",
+        "Each file also duplicates 'os.environ.setdefault(\"MSWEA_GLOBAL_CONFIG_DIR\", str(_hermes_home))'"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "incomplete_migration",
+      "identifier": "sqlite_jsonl_dual_write",
+      "summary": "Session transcript dual-writes to both SQLite and JSONL with no migration completion plan",
+      "confidence": "high",
+      "suggestion": "Add a concrete TODO with a condition for removing JSONL writes (e.g., 'Remove JSONL writes after confirming no external tooling reads .jsonl files directly'). Consider making JSONL writes opt-in via a config flag so the migration can be completed incrementally.",
+      "related_files": [
+        "gateway/session.py",
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "gateway/session.py:723 comment says 'keeps existing tooling working during transition' but there is no TODO/timeline for removing JSONL",
+        "append_to_transcript always writes JSONL unconditionally (line 724-726) even when SQLite succeeds",
+        "rewrite_transcript (line 728) also dual-writes to both stores",
+        "load_transcript (line 756) reads from SQLite first, falls back to JSONL \u2014 the read path is already migrated but writes are not"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "incomplete_migration",
+      "identifier": "deprecated_on_auto_reset_param",
+      "summary": "Deprecated on_auto_reset parameter still accepted by SessionStore.__init__ but never used",
+      "confidence": "high",
+      "suggestion": "Remove the on_auto_reset parameter from SessionStore.__init__ since no caller passes it.",
+      "related_files": [
+        "gateway/session.py"
+      ],
+      "evidence": [
+        "gateway/session.py:334 accepts on_auto_reset=None with comment 'deprecated \u2014 memory flush now runs proactively'",
+        "No caller passes this parameter (confirmed via grep of all SessionStore instantiations)",
+        "The parameter is not stored or used in any method"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "incomplete_migration",
+      "identifier": "deprecated_env_var_still_read",
+      "summary": "Deprecated HERMES_TOOL_PROGRESS_MODE env var still read as active fallback in gateway/run.py",
+      "confidence": "medium",
+      "suggestion": "Remove the os.getenv('HERMES_TOOL_PROGRESS_MODE') fallback from gateway/run.py:3297 since the config migration system already handles converting old env vars to config.yaml entries. This would complete the deprecation.",
+      "related_files": [
+        "gateway/run.py",
+        "hermes_cli/config.py"
+      ],
+      "evidence": [
+        "hermes_cli/config.py:548-560 marks HERMES_TOOL_PROGRESS and HERMES_TOOL_PROGRESS_MODE as deprecated",
+        "gateway/run.py:3297 still reads os.getenv('HERMES_TOOL_PROGRESS_MODE') as the second-priority fallback for progress_mode",
+        "The config migration system (hermes_cli/config.py:682-689) already converts these env vars into config.yaml values"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "package_organization",
+      "identifier": "tools_flat_directory_overload",
+      "summary": "tools/ has 39 files in a flat directory with at least 3 identifiable concern clusters",
+      "confidence": "high",
+      "suggestion": "Phase 1: Move the 5 skills_*/skill_* files into tools/skills/ subdirectory since they are tightly coupled and share a naming prefix. Phase 2: Move infrastructure files (registry.py, interrupt.py, process_registry.py, approval.py, debug_helpers.py, fuzzy_match.py, patch_parser.py, openrouter_client.py) into tools/infra/ or tools/_internal/. After each move, run `python -c 'import tools'` and `pytest tests/tools/ -x` to validate imports.",
+      "related_files": [
+        "tools/skills_tool.py",
+        "tools/skills_hub.py",
+        "tools/skills_sync.py",
+        "tools/skills_guard.py",
+        "tools/skill_manager_tool.py",
+        "tools/registry.py",
+        "tools/interrupt.py",
+        "tools/process_registry.py",
+        "tools/approval.py",
+        "tools/openrouter_client.py"
+      ],
+      "evidence": [
+        "39 Python files in tools/ with only 1 subdirectory (environments/)",
+        "5 skills-related files share the skills_/skill_ prefix and form a tightly coupled cluster",
+        "Infrastructure files (registry.py, interrupt.py, process_registry.py, approval.py, debug_helpers.py, fuzzy_match.py, patch_parser.py, openrouter_client.py) are not tool implementations but support code mixed alongside actual tools"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "package_organization",
+      "identifier": "hermes_cli_flat_directory",
+      "summary": "hermes_cli/ has 26 files in a flat directory mixing CLI subcommands, config, display, and auth",
+      "confidence": "medium",
+      "suggestion": "The strongest candidate is grouping display files (banner.py, colors.py, skin_engine.py, curses_ui.py) into hermes_cli/display/ \u2014 they are cohesive and have moderate coupling to the rest of hermes_cli. Auth files (auth.py, runtime_provider.py, codex_models.py) could form hermes_cli/auth/. Move incrementally, updating imports and running `pytest tests/hermes_cli/ -x` after each batch.",
+      "related_files": [
+        "hermes_cli/auth.py",
+        "hermes_cli/runtime_provider.py",
+        "hermes_cli/banner.py",
+        "hermes_cli/colors.py",
+        "hermes_cli/skin_engine.py",
+        "hermes_cli/curses_ui.py",
+        "hermes_cli/config.py",
+        "hermes_cli/tools_config.py",
+        "hermes_cli/skills_config.py"
+      ],
+      "evidence": [
+        "26 Python files in hermes_cli/ with 0 subdirectories",
+        "Display/theming cluster: banner.py, colors.py, skin_engine.py, curses_ui.py (4 files)",
+        "Config cluster: config.py (32 importers \u2014 god module), tools_config.py, skills_config.py (3 files)",
+        "Auth cluster: auth.py (19 importers, 2092 LOC), runtime_provider.py, codex_models.py (3 files)"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "package_organization",
+      "identifier": "root_pipeline_stragglers",
+      "summary": "4 peripheral root files (batch_runner, trajectory_compressor, mini_swe_runner, rl_cli) share a pipeline concern",
+      "confidence": "high",
+      "suggestion": "Create a pipeline/ (or runners/) package and move batch_runner.py, trajectory_compressor.py, mini_swe_runner.py, rl_cli.py, and toolset_distributions.py into it. Update the 4 external importers (scripts/sample_and_compress.py, environments/hermes_base_env.py, and 2 test files). Validate with `pytest tests/test_batch_runner_checkpoint.py tests/test_trajectory_compressor.py tests/test_toolset_distributions.py -x`.",
+      "related_files": [
+        "batch_runner.py",
+        "trajectory_compressor.py",
+        "mini_swe_runner.py",
+        "rl_cli.py",
+        "toolset_distributions.py"
+      ],
+      "evidence": [
+        "batch_runner.py (fan_in=2), trajectory_compressor.py (fan_in=2), mini_swe_runner.py (fan_in=0), rl_cli.py (fan_in=0) are all peripheral (fan_in < 5)",
+        "toolset_distributions.py (fan_in=3) is consumed primarily by batch_runner.py",
+        "All 5 files relate to batch processing, training data pipelines, or specialized runners \u2014 a coherent 'pipeline' concern",
+        "mini_swe_runner.py and rl_cli.py have zero importers \u2014 they are standalone entry points that clutter the root"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "gateway_run_import_side_effects",
+      "summary": "gateway/run.py performs dotenv loading, YAML parsing, and os.environ mutation at module scope",
+      "confidence": "high",
+      "suggestion": "Move the dotenv loading and config.yaml bridging into a function like _bootstrap_environment() called explicitly by start_gateway() and the GatewayRunner constructor, rather than at module scope. Tests can call it explicitly or skip it.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "Lines 36-44: load_dotenv called at module scope, reading ~/.hermes/.env",
+        "Lines 48-99: config.yaml parsed at module scope, bridging ~20 terminal/compression settings into os.environ",
+        "Any test importing GatewayRunner triggers file I/O and environment pollution"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "sys_path_insert_gateway_modules",
+      "summary": "sys.path.insert(0, ...) at import time in 6 gateway platform modules pollutes sys.path",
+      "confidence": "high",
+      "suggestion": "Install the project as a package (pip install -e .) or use a single conftest/bootstrap that sets sys.path once. The gateway modules should use relative imports (from gateway.config import ...) which already work when the package is properly installed.",
+      "related_files": [
+        "gateway/platforms/base.py",
+        "gateway/platforms/telegram.py",
+        "gateway/platforms/discord.py",
+        "gateway/platforms/whatsapp.py",
+        "gateway/platforms/slack.py",
+        "gateway/platforms/signal.py",
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "gateway/platforms/base.py:24: sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))",
+        "Same pattern repeated in telegram.py:48, discord.py:31, whatsapp.py:66, slack.py:30, run.py:30",
+        "Each import appends a duplicate entry to sys.path; order of imports affects module resolution"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "model_tools_stale_snapshots",
+      "summary": "TOOL_TO_TOOLSET_MAP and TOOLSET_REQUIREMENTS are stale snapshots built once at import time",
+      "confidence": "medium",
+      "suggestion": "Replace the module-level constants with thin functions that delegate to the registry: e.g. def get_tool_to_toolset_map(): return registry.get_tool_to_toolset_map(). Callers already have registry access via the import.",
+      "related_files": [
+        "model_tools.py"
+      ],
+      "evidence": [
+        "Lines 122-124: module-level constants computed from registry after _discover_tools()",
+        "batch_runner.py:52 uses ALL_POSSIBLE_TOOLS = set(TOOL_TO_TOOLSET_MAP.keys()) which is frozen at import",
+        "If any tool registration occurs after model_tools import (e.g. dynamic plugin loading), these maps silently diverge from the registry"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "run_conversation_monster",
+      "summary": "run_conversation() is ~1470 lines with 5+ distinct responsibilities in one method body",
+      "confidence": "high",
+      "suggestion": "Extract the major phases into focused private methods: _resolve_system_prompt(), _preflight_compress(), _prepare_api_call(messages), _handle_api_response(response, messages). The main loop body should orchestrate these phases, not implement them inline.",
+      "related_files": [
+        "run_agent.py"
+      ],
+      "evidence": [
+        "Lines 4024-5495: system prompt resolution (4146-4175), preflight compression (4185-4222), Honcho integration (4108-4126), main tool-calling loop (4239-5480), API call construction (4282-4400), response assembly and error recovery interspersed throughout, session persistence (multiple points)"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "gateway_config_yaml_reload",
+      "summary": "gateway/run.py opens and parses config.yaml 11 times independently across 7 _load_* methods",
+      "confidence": "high",
+      "suggestion": "Load config.yaml once in __init__ into a dict, then have each _load_* method extract its section from the pre-loaded dict. A single _load_config_yaml() -> dict method replaces 7+ file opens with 7 dict lookups.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "7 static methods (_load_prefill_messages, _load_ephemeral_system_prompt, _load_reasoning_config, _load_show_reasoning, _load_background_notifications_mode, _load_provider_routing, _load_fallback_model) each independently do: import yaml; open config.yaml; yaml.safe_load(f). Additional inline loads at lines 1186-1188, 1772, 1863, etc."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "media_cache_triplication",
+      "summary": "Three nearly identical media cache implementations (image/audio/document) in gateway/platforms/base.py",
+      "confidence": "high",
+      "suggestion": "Extract a MediaCache(base_dir, prefix, default_ext) class or a set of generic functions parameterized by directory and prefix. The three media types become three instances: image_cache = MediaCache('image_cache', 'img', '.jpg'). This eliminates ~100 lines of copy-paste.",
+      "related_files": [
+        "gateway/platforms/base.py"
+      ],
+      "evidence": [
+        "get_image_cache_dir/get_audio_cache_dir/get_document_cache_dir are structurally identical (mkdir + return dir). cache_image_from_bytes/cache_audio_from_bytes are structurally identical (uuid prefix + write_bytes). cache_image_from_url/cache_audio_from_url are structurally identical (httpx download + call from_bytes). cleanup_image_cache/cleanup_document_cache are structurally identical (iterate + unlink by age)."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "aiagent_init_parameter_sprawl",
+      "summary": "AIAgent.__init__ accepts 40+ parameters spanning 6 distinct responsibility groups",
+      "confidence": "medium",
+      "suggestion": "The provider routing parameters (providers_allowed, providers_ignored, providers_order, provider_sort, provider_require_parameters, provider_data_collection) form a natural group that could become a ProviderRouting dataclass -- this group has independent semantic meaning as OpenRouter provider preferences. Similarly, Honcho params (honcho_session_key, honcho_manager, honcho_config) are a cohesive unit. Do not group the remaining params -- they are individually meaningful.",
+      "related_files": [
+        "run_agent.py"
+      ],
+      "evidence": [
+        "Lines 213-257: parameters include LLM config (model, max_iterations, max_tokens, reasoning_config), provider routing (providers_allowed/ignored/order/sort/require_parameters/data_collection -- 6 params), callbacks (tool_progress/thinking/reasoning/clarify/step -- 5 params), Honcho (honcho_session_key/manager/config -- 3 params), session (session_id/session_db/pass_session_id), logging (verbose_logging/quiet_mode/log_prefix/log_prefix_chars)"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "command_dispatch_chain",
+      "summary": "gateway/run.py _handle_message uses a 60-line if/elif chain for command dispatch despite having a _known_commands set",
+      "confidence": "medium",
+      "suggestion": "Replace the if/elif chain with a dispatch dict mapping command name to handler method: _COMMAND_DISPATCH = {'new': _handle_reset_command, 'reset': _handle_reset_command, 'help': _handle_help_command, ...}. The dispatch becomes: handler = _COMMAND_DISPATCH.get(command); if handler: return await handler(self, event). This also unifies with the _known_commands set.",
+      "related_files": [
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "Lines 983-1044: 21 sequential if-checks of the form 'if command == X: return await self._handle_X_command(event)'. The _known_commands set at line 970 already enumerates these commands for hook emission but is not used for dispatch."
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "toolset_info_returns_none",
+      "summary": "get_toolset_info() annotated as -> Dict[str, Any] but returns None when toolset not found",
+      "confidence": "high",
+      "suggestion": "Change return annotation to Optional[Dict[str, Any]] to match the actual behavior, consistent with get_toolset() on line 300 which correctly uses Optional.",
+      "related_files": [
+        "toolsets.py"
+      ],
+      "evidence": [
+        "Line 446 declares -> Dict[str, Any], line 458 returns None. Callers expecting a dict will hit AttributeError on key access."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "deliver_returns_sendresult_not_dict",
+      "summary": "_deliver_to_platform annotated -> Dict[str, Any] but returns SendResult dataclass",
+      "confidence": "high",
+      "suggestion": "Either change the annotation to -> SendResult, or convert the return value: return a dict like {'success': result.success, 'message_id': result.message_id} from _deliver_to_platform.",
+      "related_files": [
+        "gateway/delivery.py",
+        "gateway/platforms/base.py"
+      ],
+      "evidence": [
+        "Line 269 declares -> Dict[str, Any]. Line 292 returns await adapter.send() which returns SendResult (a dataclass with success, message_id, error, raw_response fields). The caller deliver() nests this under 'result' key at line 199, creating {'success': True, 'result': <SendResult object>}."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "contract_coherence",
+      "identifier": "cache_getters_mutate_filesystem",
+      "summary": "get_image_cache_dir, get_audio_cache_dir, get_document_cache_dir create directories as a side effect",
+      "confidence": "medium",
+      "suggestion": "Rename to ensure_image_cache_dir() / ensure_audio_cache_dir() / ensure_document_cache_dir() to signal the side effect. Alternatively, move the mkdir to module init or a separate ensure_cache_dirs() function.",
+      "related_files": [
+        "gateway/platforms/base.py"
+      ],
+      "evidence": [
+        "get_image_cache_dir() (line 49), get_audio_cache_dir() (line 131), get_document_cache_dir() (line 199) all call .mkdir(parents=True, exist_ok=True). The 'get_' prefix implies a pure read, but these mutate the filesystem on every call."
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "identical_branches_telegram_document",
+      "summary": "elif msg.document / else branches both assign MessageType.DOCUMENT identically",
+      "confidence": "high",
+      "suggestion": "Remove the elif msg.document branch and let the else handle all remaining cases as DOCUMENT, or if DOCUMENT should only apply when msg.document is truthy, change the else to assign a different type (e.g., MessageType.UNKNOWN).",
+      "related_files": [
+        "gateway/platforms/telegram.py"
+      ],
+      "evidence": [
+        "Lines 736-739: elif msg.document sets msg_type = MessageType.DOCUMENT, else also sets msg_type = MessageType.DOCUMENT. The condition is meaningless."
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "identical_branches_uninstall",
+      "summary": "if/else in uninstall.py:280 performs identical shutil.rmtree + log_success in both branches",
+      "confidence": "high",
+      "suggestion": "Remove the if/else condition and unconditionally call shutil.rmtree(project_root) followed by log_success(). If there was intended to be different behavior (e.g., only removing a subdirectory), implement the actual distinction.",
+      "related_files": [
+        "hermes_cli/uninstall.py"
+      ],
+      "evidence": [
+        "Lines 280-286: whether project_root is inside hermes_home or not, both branches call shutil.rmtree(project_root) and log_success() identically."
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "identical_branches_skills_sync",
+      "summary": "if user_hash == bundled_hash / else in skills_sync.py:204 both just increment skipped",
+      "confidence": "high",
+      "suggestion": "Collapse to a single skipped += 1 with a comment noting the ambiguity during v1 migration. The conditional adds no value since both paths do the same thing.",
+      "related_files": [
+        "tools/skills_sync.py"
+      ],
+      "evidence": [
+        "Lines 204-208: both branches of the condition increment skipped += 1 with no other difference. The condition distinguishes 'already in sync' from 'can't tell' but takes the same action."
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "dead_code_checkpoint_manager",
+      "summary": "checkpoint_manager.py:255-260 runs git log whose result is immediately overwritten by lines 263-266",
+      "confidence": "high",
+      "suggestion": "Remove lines 255-260 entirely. The second git log call (lines 263-266) is the one actually used.",
+      "related_files": [
+        "tools/checkpoint_manager.py"
+      ],
+      "evidence": [
+        "Lines 255-260 call _run_git with an always-false condition ('--all' if False else 'HEAD') and assign to ok, stdout, _. Lines 263-266 immediately overwrite ok, stdout, _ with a second _run_git call. The first call is wasted work."
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "duplicated_dead_countdown_check",
+      "summary": "cli.py:3549-3551 duplicates the countdown refresh check from lines 3546-3548, second block never fires",
+      "confidence": "high",
+      "suggestion": "Remove the duplicated block at lines 3549-3551.",
+      "related_files": [
+        "cli.py"
+      ],
+      "evidence": [
+        "Lines 3546-3548 check if now - _last_countdown_refresh >= 5.0 and if true, set _last_countdown_refresh = now. Lines 3549-3551 repeat the identical check. After the first block runs, _last_countdown_refresh equals now, so the second check always evaluates to False."
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "logic_clarity",
+      "identifier": "async_send_email_never_awaits",
+      "summary": "async def _send_email() uses blocking smtplib, never awaits anything",
+      "confidence": "high",
+      "suggestion": "Either run the blocking SMTP work in an executor (await asyncio.to_thread(_send_email_sync, ...)) or use an async SMTP library like aiosmtplib.",
+      "related_files": [
+        "tools/send_message_tool.py"
+      ],
+      "evidence": [
+        "Line 289: _send_email is declared async but uses smtplib.SMTP (blocking I/O) for the entire operation. It is awaited by _send_to_platform, so it must be async, but the blocking SMTP calls will freeze the event loop."
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "optional_without_annotation",
+      "summary": "15+ parameters typed as concrete types (str, int, dict, callable) but default to None without Optional annotation",
+      "confidence": "high",
+      "suggestion": "Add Optional[] to all parameters that accept None. For example: base_url: Optional[str] = None, last_prompt_tokens: Optional[int] = None. This is a mechanical find-and-replace that can be done per-file.",
+      "related_files": [
+        "run_agent.py",
+        "gateway/session.py",
+        "gateway/pairing.py",
+        "gateway/hermes_control_client.py"
+      ],
+      "evidence": [
+        "run_agent.py:215 base_url: str = None",
+        "run_agent.py:216 api_key: str = None",
+        "run_agent.py:218 api_mode: str = None",
+        "run_agent.py:242 max_tokens: int = None",
+        "run_agent.py:237 tool_progress_callback: callable = None",
+        "gateway/session.py:571 last_prompt_tokens: int = None",
+        "gateway/pairing.py:95 platform: str = None",
+        "gateway/hermes_control_client.py:55 body: dict = None"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "untyped_discriminator_api_mode",
+      "summary": "AIAgent.api_mode is bare str but acts as a 3-value discriminated union compared 50+ times",
+      "confidence": "high",
+      "suggestion": "Define ApiMode = Literal['chat_completions', 'codex_responses', 'anthropic_messages'] and type the field as Optional[ApiMode]. This enables static analysis to catch typos in the 50+ comparison sites.",
+      "related_files": [
+        "run_agent.py"
+      ],
+      "evidence": [
+        "run_agent.py:218 api_mode: str = None, but only valid values are 'chat_completions', 'codex_responses', 'anthropic_messages'",
+        "run_agent.py:321 validates against a set literal but discards the constraint immediately into a str field",
+        "50+ comparisons like self.api_mode == 'codex_responses' scattered across run_agent.py with no typo protection"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "untyped_discriminator_reset_mode",
+      "summary": "SessionResetPolicy.mode is bare str but only valid as 'daily' | 'idle' | 'both' | 'none'",
+      "confidence": "high",
+      "suggestion": "Define ResetMode = Literal['daily', 'idle', 'both', 'none'] and type SessionResetPolicy.mode as ResetMode. The enum is already documented in the docstring; making it a type gives static analysis teeth.",
+      "related_files": [
+        "gateway/config.py",
+        "gateway/session.py"
+      ],
+      "evidence": [
+        "gateway/config.py:73 mode: str = 'both' with comment listing 4 valid values",
+        "gateway/session.py:414,419,424,452,457,462 six comparisons against string literals with no protection"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "message_event_source_not_optional",
+      "summary": "MessageEvent.source typed as SessionSource but defaults to None -- annotation lies about nullability",
+      "confidence": "high",
+      "suggestion": "Change to source: Optional[SessionSource] = None. Alternatively, if source is always set before use, make it a required field and remove the default.",
+      "related_files": [
+        "gateway/platforms/base.py"
+      ],
+      "evidence": [
+        "gateway/platforms/base.py:283 source: SessionSource = None",
+        "Callers like _process_message_background (line 706) access event.source.thread_id without null check, relying on runtime convention rather than type guarantees"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "type_safety",
+      "identifier": "adapters_dict_any_any",
+      "summary": "build_channel_directory uses Dict[Any, Any] where specific types exist",
+      "confidence": "high",
+      "suggestion": "Change parameter type to Dict[Platform, BasePlatformAdapter] which matches actual usage and enables static analysis of the key comparisons.",
+      "related_files": [
+        "gateway/channel_directory.py"
+      ],
+      "evidence": [
+        "gateway/channel_directory.py:44 def build_channel_directory(adapters: Dict[Any, Any]) -> Dict[str, Any]",
+        "The function immediately compares keys against Platform enum values (line 56: platform == Platform.DISCORD), proving the key type is Platform"
+      ],
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "review_quality": {
+    "batch_count": 20,
+    "dimension_coverage": 0.05,
+    "evidence_density": 2.206,
+    "high_score_missing_issue_note": 0
+  },
+  "context_updates": {
+    "cross_module_architecture": {
+      "add": [
+        {
+          "header": "Clean gateway/platforms hierarchy",
+          "description": "Platform adapters import from gateway.config and gateway.session in a one-directional downward flow, while gateway.run imports platform adapters upward. This is a well-structured parent-child dependency relationship within the gateway subsystem.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Interrupt module as clean shared signaling",
+          "description": "tools/interrupt.py encapsulates a threading.Event behind set_interrupt/is_interrupted API, providing cross-cutting interrupt signaling without exposing mutable state. Called from run_agent.py, polled by 20 tool modules.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Documented import chain in tools/registry.py",
+          "description": "tools/registry.py documents its intended import hierarchy in its docstring to prevent circular imports. However, the actual code violates this contract by importing _run_async from model_tools.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Bidirectional root-hermes_cli coupling",
+          "description": "Root-level files (cli.py, run_agent.py) and hermes_cli/ have 24 bidirectional import edges. hermes_cli/callbacks.py and hermes_cli/main.py import back from root cli.py, creating a dependency cycle managed only by deferred imports.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Pervasive sys.path.insert for imports",
+          "description": "30+ production files use sys.path.insert at module scope to enable cross-package imports. This indicates the project lacks proper package installation (editable install) and relies on runtime path manipulation, removing static analysis protection against boundary violations.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Three massive hub files concentrate coupling",
+          "description": "cli.py (5162 LOC), run_agent.py (5725 LOC), and gateway/run.py (4067 LOC) collectively import from nearly every subsystem, acting as coupling magnifiers where changes in shared modules ripple through all three.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Registration-pattern cycle in tool_call_parsers",
+          "description": "environments/tool_call_parsers/__init__.py imports all parser modules which import register_parser from __init__.py. This is a standard plugin registry pattern and does not cause runtime issues.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "high_level_elegance": {
+      "add": [
+        {
+          "header": "Domain-aligned package decomposition",
+          "description": "Major packages (agent/, gateway/, hermes_cli/, tools/, cron/, honcho_integration/) each own a single domain capability. A new engineer can predict what each directory contains from the name alone.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Consistent platform adapter pattern",
+          "description": "gateway/platforms/ follows a uniform one-file-per-platform convention with a shared base.py ABC and an ADDING_A_PLATFORM.md guide, making the extension pattern obvious.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Centralized tool registry",
+          "description": "All 30+ tools self-register via tools/registry.py at import time. model_tools.py is a thin orchestration layer. This is the single consistent architectural pattern for tool management.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Clean gateway public surface",
+          "description": "gateway/__init__.py defines an explicit __all__ exporting config types, session management, and delivery routing -- a curated API surface that matches the package's stated responsibility.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Three monolithic orchestrator files",
+          "description": "cli.py (5.2K lines), run_agent.py (5.7K lines), and gateway/run.py (4K lines) each concentrate multiple responsibilities. The agent/ extraction started but left the core intact. These files are the primary source of ownership ambiguity within their domains.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Dual CLI entry point design",
+          "description": "hermes_cli/main.py is the argparse subcommand dispatcher ('hermes setup', 'hermes gateway', etc.) while cli.py is the interactive REPL. main.py delegates 'hermes chat' to cli.py. This is intentional but means CLI responsibilities span two locations.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Stale AGENTS.md project structure",
+          "description": "The documented structure includes a nonexistent acp_adapter/ directory and omits many real directories and files, making it an unreliable map of the codebase.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Research code at root level",
+          "description": "batch_runner.py, trajectory_compressor.py, rl_cli.py, mini_swe_runner.py, and toolset_distributions.py are RL/research infrastructure that sit at the project root alongside production code without clear separation.",
+          "settled": false,
+          "positive": false
+        }
+      ]
+    },
+    "convention_outlier": {
+      "add": [
+        {
+          "header": "Consistent snake_case and PascalCase naming",
+          "description": "All Python modules use snake_case for functions/variables and PascalCase for classes. No camelCase drift detected across any package boundary.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Uniform registry.register tool convention",
+          "description": "Every tool file in tools/ calls registry.register() at module level. model_tools.py triggers registration by importing all tool modules. This pattern is documented and followed consistently.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Consistent platform adapter ABC pattern",
+          "description": "All 7 platform adapters inherit BasePlatformAdapter, implement the same abstract methods, and expose a module-level check_*_requirements() function. The structural contract is reliable.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Uniform dataclass type strategy",
+          "description": "All 38 domain data types use @dataclass. No mixed TypedDict/NamedTuple usage, eliminating one common source of convention drift.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Consistent tool_call_parser registration",
+          "description": "All parser classes in environments/tool_call_parsers/ inherit from ToolCallParser ABC and use the @register_parser decorator. Adding a new parser follows an obvious pattern.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Platform adapter sys.path.insert split",
+          "description": "telegram, discord, slack, whatsapp adapters use sys.path.insert before importing gateway modules; signal, email, homeassistant import directly. Likely reflects different authorship periods \u2014 earlier adapters added the hack, later ones found it unnecessary.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "error_consistency": {
+      "add": [
+        {
+          "header": "Consistent tool error return convention",
+          "description": "All tool handlers return JSON strings with {\"error\": ...} key on failure. model_tools.handle_function_call wraps uncaught exceptions in the same format. This gives the LLM a predictable error contract.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "SendResult dataclass for platform operations",
+          "description": "Platform adapters return SendResult with explicit success/error fields, providing structured error reporting at the adapter boundary.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Optional-dependency imports use ImportError consistently",
+          "description": "Conditional imports (discord, slack_bolt, croniter) consistently use except ImportError to set sentinel flags like SLACK_AVAILABLE = False, enabling clean feature-gating.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Deliberate graceful degradation for optional subsystems",
+          "description": "Honcho, SQLite session DB, skin engine, and memory systems are all treated as optional -- failures are caught and the agent continues. This is an intentional availability choice, not accidental error swallowing. The issue is that the catches are too broad (Exception instead of specific types).",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Pervasive broad except-and-pass pattern",
+          "description": "139 instances of 'except Exception: pass' across 47 files. Most protect optional features but catch programming errors (AttributeError, TypeError) alongside expected IO/parsing failures, making bugs in optional subsystems invisible.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "No error logging convention",
+          "description": "Error reporting uses a mix of print(), logger.debug(), logger.warning(), and logger.error() with no consistent severity mapping. Same-severity failures are logged differently in sibling functions within the same file.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "AuthError is sole domain exception",
+          "description": "hermes_cli/auth.py defines a well-structured AuthError with metadata fields. No other module defines domain-specific exceptions, so callers must catch broad types everywhere else.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "naming_quality": {
+      "add": [
+        {
+          "header": "Domain-precise gateway naming",
+          "description": "Gateway subsystem uses highly specific names throughout: SessionSource, MessageEvent, SendResult, BasePlatformAdapter, HomeChannel, SessionResetPolicy. A developer reading gateway code can predict class roles from names alone.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Consistent boolean predicate naming",
+          "description": "Boolean-returning methods and properties consistently use is_/should_ prefixes: is_command(), is_connected, is_interrupted(), should_compress(), should_compress_preflight(). No name/behavior mismatches found in predicate methods.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Strict snake_case convention",
+          "description": "All production code uses snake_case for functions and variables, PascalCase for classes, with zero camelCase leakage outside of unittest setUp/tearDown. This is a codebase-wide invariant.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Action-oriented utility naming",
+          "description": "Utility functions use verb+noun patterns that communicate intent: atomic_json_write, build_channel_directory, scan_skill_commands, build_skill_invocation_message, cache_image_from_bytes.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "do_ prefix convention in skills_hub.py",
+          "description": "hermes_cli/skills_hub.py uses a do_ prefix (do_search, do_install, etc.) that diverges from the codebase's pattern of domain-qualified verb+noun names. This is a localized style island.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "abstraction_fitness": {
+      "add": [
+        {
+          "header": "Tool registry self-registration pattern",
+          "description": "Each tool module calls registry.register() at import time; model_tools.py triggers discovery then delegates to the registry for schema retrieval and dispatch. This eliminates the need for a central routing table and keeps tool definitions co-located with their implementations.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Platform adapter hierarchy with 7 implementations",
+          "description": "BasePlatformAdapter in gateway/platforms/base.py has genuine extension pressure with 7 concrete subclasses (Telegram, Discord, WhatsApp, Slack, Signal, Email, HomeAssistant). The abstract methods (connect, disconnect, send, get_chat_info) define a minimal contract; optional methods (send_image, send_voice, edit_message) have sensible fallback defaults.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "utils.py is small and domain-scoped",
+          "description": "utils.py contains only atomic file write utilities (JSON and YAML) at 89 LOC. It avoids becoming a generic helper dumping ground, which is a common anti-pattern in Python projects.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "AIAgent constructor is a ~40-parameter surface",
+          "description": "The AIAgent.__init__ accumulates parameters from API config, provider routing, callbacks, session management, and feature flags without grouping into config objects. Each new feature adds another keyword argument, making the constructor progressively harder to understand and use correctly.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "model_tools.py facade over tools.registry",
+          "description": "model_tools.py provides backward-compatible wrapper functions (get_all_tool_names, check_toolset_requirements, etc.) that forward to the registry singleton. These have 5+ active callers across cli.py, run_agent.py, doctor.py and serve as a stable import path -- an intentional facade, not unnecessary indirection.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    },
+    "dependency_health": {
+      "add": [
+        {
+          "header": "Well-structured optional dependency extras",
+          "description": "pyproject.toml uses fine-grained optional extras ([messaging], [cron], [honcho], [mcp], [pty], etc.) to keep platform-specific and heavy dependencies out of the core install. This lets users install only what they need.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Deferred imports for optional packages",
+          "description": "Optional packages like croniter, elevenlabs, simple_term_menu, and fal_client are imported at call sites with try/except and graceful fallbacks, avoiding ImportError for users who don't need those features.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "No lock file for reproducibility",
+          "description": "The project has no pip lock file or constraints file. Dependencies use version floors (>=) but no upper bounds or exact pins, relying on virtual environments for reproducibility.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Dual HTTP client libraries in core",
+          "description": "Both requests and httpx are core dependencies. httpx dominates (66+ sites) while requests is used in only 2 files (6 calls). This appears to be organic drift rather than a deliberate split by sync/async need.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "low_level_elegance": {
+      "add": [
+        {
+          "header": "Clean utility module internals",
+          "description": "Small modules like tools/interrupt.py, utils.py, gateway/hermes_control_client.py, and gateway/control_api.py have focused, proportionate internals with flat control flow. These modules demonstrate what good low-level craft looks like in this codebase.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Consistent dataclass result types",
+          "description": "ReadResult, WriteResult, PatchResult, MessageEvent, SendResult all follow the same dataclass pattern with optional fields and to_dict() methods, giving a predictable shape to function returns.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Data-driven strategy chain in fuzzy_match",
+          "description": "tools/fuzzy_match.py defines matching strategies as a list of (name, function) tuples iterated in a single loop, keeping control flow flat despite 8 different matching algorithms.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Monolithic _handle_message in gateway runner",
+          "description": "The central message processing method in gateway/run.py exceeds 700 lines with deeply nested inline logic for session hygiene, media enrichment, and transcript persistence -- features that were added incrementally without extraction.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Repeated config.yaml loading boilerplate",
+          "description": "gateway/run.py contains 11 separate inline config.yaml load-parse-extract sequences with identical try/except patterns, a consequence of each _load_* method being self-contained rather than sharing a cached loader.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "mid_level_elegance": {
+      "add": [
+        {
+          "header": "Clean platform adapter abstraction",
+          "description": "BasePlatformAdapter -> MessageEvent -> SendResult provides an explicit, minimal contract with normalized data types. All 7 platform adapters produce the same MessageEvent shape, and the gateway consumes them uniformly through set_message_handler().",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Well-separated control API boundary",
+          "description": "ControlAPI (server) and HermesControl (client) form a clean REST boundary. The client uses only stdlib (urllib), the server has a focused 5-endpoint surface. External tools interact without coupling to gateway internals.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Tool registry as single registration seam",
+          "description": "tools/registry.py provides a single ToolEntry registration point. Tools self-register at import time via registry.register(), and model_tools.py provides unified get_definitions/dispatch. No parallel data structures needed by consumers.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Hook system with isolated error propagation",
+          "description": "HookRegistry.emit() fires lifecycle events with catch-and-log error isolation, transparent sync/async handler support, and wildcard matching. Hooks never block the main pipeline -- a predictable error propagation pattern at this boundary.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Scattered config.yaml re-parsing across run.py",
+          "description": "20+ independent yaml.safe_load() calls in gateway/run.py each open, parse, and extract from config.yaml independently. Config translation at boundaries happens in 20 different places instead of one obvious place, creating glue-code entropy.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Monolithic _handle_message orchestration",
+          "description": "The core message pipeline is a 700+ line method mixing authorization, command dispatch, media enrichment, session hygiene, agent invocation, and transcript persistence inline. Orchestration does not read as composition of collaborators.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Repeated temporary AIAgent construction",
+          "description": "Temporary AIAgent instances for compression, memory flush, and session hygiene are constructed in 4+ places with varying parameters (different max_iterations, toolsets, model resolution). The handoff pattern at the gateway->agent boundary is not consistent.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "test_strategy": {
+      "add": [
+        {
+          "header": "Strong test isolation via conftest",
+          "description": "All tests get auto-isolated HERMES_HOME (tmp_path) and a 30-second SIGALRM timeout via autouse fixtures in conftest.py, preventing state pollution and test hangs.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Behavior-based assertions over snapshots",
+          "description": "Only 4 of ~150 test files reference snapshots. Tests assert on behavioral outcomes (status codes, method calls, state changes) rather than output snapshots, making them resilient to formatting changes.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Per-feature test pattern for gateway",
+          "description": "Gateway tests are organized per-slash-command (test_autoreply_command.py, test_background_command.py, etc.) rather than per-module. This gives good feature coverage but leaves the central _handle_message orchestration pipeline undertested.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Fake HA server for integration testing",
+          "description": "tests/fakes/fake_ha_server.py provides a real HTTP+WebSocket server mimicking the Home Assistant API, enabling realistic integration tests without external dependencies.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "object.__new__ pattern for GatewayRunner test construction",
+          "description": "9 test files bypass GatewayRunner.__init__ via object.__new__ and manually set internal attributes. This creates fragile coupling \u2014 any new attribute requires updating all 9 files.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "High-traffic modules with zero coverage",
+          "description": "gateway/run.py (4067 LOC), tools/terminal_tool.py (1266 LOC), hermes_cli/main.py (3149 LOC), and hermes_cli/auth.py (2092 LOC) are among the largest and most-imported modules but have no dedicated test files.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "api_surface_coherence": {
+      "add": [
+        {
+          "header": "Consistent platform adapter interface",
+          "description": "All 8 platform adapters (Telegram, Discord, WhatsApp, Slack, Signal, Email, Home Assistant, plus the abstract base) share identical send/connect/disconnect signatures. A developer seeing one adapter can predict the shape of all others.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Uniform tool registration API",
+          "description": "The ToolRegistry.register() method provides a single registration interface that all 20+ tool files use consistently. Schema, handler, check_fn, and metadata follow the same shape everywhere.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Clean sync-only control client",
+          "description": "HermesControl (the client) is entirely synchronous using stdlib urllib, while ControlAPI (the server) is entirely async using aiohttp. No mixed sync/async within either module's public API.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Consistent dataclass serialization pattern",
+          "description": "SessionSource, SessionEntry, HomeChannel, PlatformConfig, DeliveryTarget all follow the same to_dict/from_dict class method pattern for serialization, making the API predictable across the gateway subsystem.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Cache utility parameter drift",
+          "description": "cache_document_from_bytes takes a filename parameter where cache_image_from_bytes and cache_audio_from_bytes take an ext parameter. The document variant legitimately needs richer naming but breaks the sibling pattern without explanation.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "authorization_consistency": {
+      "add": [
+        {
+          "header": "Centralized user auth in GatewayRunner",
+          "description": "All platform message handling routes through _is_user_authorized() in gateway/run.py, providing a single enforcement point with a consistent multi-layer chain: per-platform allow-all, pairing store, platform allowlist, global allowlist, global allow-all, default deny.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "DM pairing with OWASP-aligned security",
+          "description": "gateway/pairing.py implements cryptographic code generation, rate limiting, lockout after failed attempts, code expiry (1 hour), and restrictive file permissions (0600). This provides a secure onboarding path for new users without requiring static ID configuration.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Control API scoped to localhost with opt-in",
+          "description": "The HTTP control API binds to 127.0.0.1 only and requires HERMES_CONTROL_API=true to activate. Injected messages re-enter the auth pipeline, so the control surface does not bypass user-level authorization.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Platform allowlist env vars as magic strings",
+          "description": "Env var names like TELEGRAM_ALLOWED_USERS are repeated as string literals across run.py, setup.py, gateway.py, config.py, and migration scripts. The enforcement point is centralized so drift risk is low, but adding a new platform requires updating strings in multiple files.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "ai_generated_debt": {
+      "add": [
+        {
+          "header": "Informative module-level docstrings throughout core",
+          "description": "Module docstrings in agent/, gateway/, tools/registry.py, and utility modules explain architecture, resolution chains, import ordering rationale, and non-obvious constraints -- genuinely useful context that aids navigation.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Purposeful logging with no noisy entry/exit pattern",
+          "description": "logger.getLogger(__name__) is used pervasively but logging calls are targeted at errors and key lifecycle events. No entry/exit debug logging or full object dumps observed.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Section dividers as navigation aids in large files",
+          "description": "Consistent use of # === / # --- / # -- dividers in files like run_agent.py, hermes_state.py, tools/registry.py provides visual structure without ceremony.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Docstring bloat concentrated in toolsets modules",
+          "description": "toolsets.py and toolset_distributions.py have verbose multi-section docstrings on trivial 1-2 line functions, contrasting with the rest of the codebase where docstrings are proportionate to function complexity.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Duplicated bootstrap boilerplate across entry points",
+          "description": "The .env loading pattern (try utf-8, except latin-1 fallback) plus MSWEA env setup is copied verbatim across 7+ files rather than extracted to a shared helper.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "incomplete_migration": {
+      "add": [
+        {
+          "header": "Legacy toolset names well-documented and tested",
+          "description": "_LEGACY_TOOLSET_MAP in model_tools.py provides backward compat for old _tools-suffixed names. It has dedicated tests (TestLegacyToolsetMap) and clear usage in get_tool_definitions(). This is an intentional compat layer with active callers.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Config normalization handles legacy keys cleanly",
+          "description": "_normalize_max_turns_config and _normalize_recall_mode are clean one-directional transforms that silently upgrade old config formats. They run on every config load without side effects.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "SQLite/JSONL dual-write in active transition",
+          "description": "Session transcripts are written to both SQLite and JSONL. Reads prefer SQLite with JSONL fallback. The write side has not been migrated to SQLite-only, leaving indefinite dual-write overhead. Comment says 'during transition' but no completion criteria exist.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Deprecated env vars with migration path",
+          "description": "HERMES_TOOL_PROGRESS and HERMES_TOOL_PROGRESS_MODE are deprecated in favor of config.yaml. The config migration system auto-converts them, but gateway/run.py still reads the old env var as a fallback, keeping the deprecated path alive.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "OpenClaw migration is a proper optional skill",
+          "description": "The openclaw-migration skill is structured under optional-skills/ with its own CLI entry points (hermes claw migrate), comprehensive tests, and preset system. This is a well-bounded, intentional migration tool rather than leftover shim code.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    },
+    "package_organization": {
+      "add": [
+        {
+          "header": "Sound top-level domain decomposition",
+          "description": "The top-level packages (agent/, gateway/, hermes_cli/, tools/, honcho_integration/, cron/, environments/) map cleanly to distinct functional domains with minimal ambiguity. A developer can predict which top-level package owns a given concern.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Gateway platform adapter layout",
+          "description": "gateway/platforms/ demonstrates good subdirectory design \u2014 one file per platform adapter plus a base.py abstract class, with clean coupling back to gateway/ parent.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Core root files are legitimately core",
+          "description": "run_agent.py (fan_in=24), cli.py (fan_in=15), model_tools.py (fan_in=14), hermes_constants.py (fan_in=11), hermes_state.py (fan_in=11), toolsets.py (fan_in=9) all exceed the fan_in >= 5 threshold and are imported across multiple subdirectories \u2014 they belong at root.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "tools/ flat directory with 39 files",
+          "description": "The tools/ directory has grown to 39 files with identifiable subgroups (5 skills files, 8+ infrastructure files) mixed alongside tool implementations, making navigation harder than necessary for its size.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "hermes_cli/ flat directory with 26 files",
+          "description": "hermes_cli/ has 26 files mixing CLI subcommands, configuration management, display/theming, and auth infrastructure in a single flat directory with no subdirectories.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Root-level pipeline script sprawl",
+          "description": "Five peripheral root files (batch_runner, trajectory_compressor, mini_swe_runner, rl_cli, toolset_distributions) share a batch/training pipeline concern but live at the root with low fan-in (0-3), diluting root-level navigability.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "initialization_coupling": {
+      "add": [
+        {
+          "header": "Documented circular-import-safe tool registry chain",
+          "description": "tools/registry.py has no imports from model_tools or tool files; tool files import from registry; model_tools imports both. This three-layer chain is documented in the module docstring and prevents circular imports by construction.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Import-safe constants module (hermes_constants.py)",
+          "description": "hermes_constants.py is explicitly designed with no dependencies, providing URL constants that any module can import without risk of boot-order issues or circular imports.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Lazy client initialization pattern",
+          "description": "Expensive clients (Firecrawl, Honcho, auxiliary OpenAI) use module-level None sentinels with get-or-create functions, deferring network connections and credential resolution until first use rather than import time.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "hermes_time lazy caching with reset_cache()",
+          "description": "Timezone resolution does file I/O (config.yaml) but is deferred to first call of now() and cached, with an explicit reset_cache() for tests. Good pattern for config that requires I/O.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Gateway sys.path manipulation at import time",
+          "description": "Six gateway platform modules and gateway/run.py each call sys.path.insert(0, ...) at module scope to find the project root. This creates duplicate sys.path entries and couples import behavior to filesystem structure rather than proper packaging.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Entry-point environment mutation at module scope",
+          "description": "cli.py and gateway/run.py load .env files and mutate os.environ at module scope rather than inside their main() functions. Tests importing these modules inherit environment side effects.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "design_coherence": {
+      "add": [
+        {
+          "header": "Clean tool and parser registry patterns",
+          "description": "tools/registry.py and environments/tool_call_parsers/__init__.py both use decorator-based registration with ABC base classes, providing focused, data-driven extensibility. These demonstrate the team's capacity for disciplined design.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Agent submodule extraction is well-executed",
+          "description": "The agent/ package extracts prompt_builder, context_compressor, display, trajectory, model_metadata, and anthropic_adapter into focused modules with clear single responsibilities and no circular dependencies.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Three orchestration monoliths dominate the codebase",
+          "description": "run_agent.py (5725 LOC), cli.py (5162 LOC), and gateway/run.py (4067 LOC) together comprise ~15K lines and mix configuration loading, session management, command dispatch, agent lifecycle, and UI concerns within single files/classes.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Repeated config.yaml loading across gateway/run.py",
+          "description": "Seven _load_* static methods and four inline blocks each independently open and parse the same YAML file. This is a structural pattern that should load once and distribute, not a single-responsibility decomposition.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "contract_coherence": {
+      "add": [
+        {
+          "header": "Consistent tool handler error envelope",
+          "description": "All tool handlers (30+) return JSON strings with either {success: true, ...} or {error: '...'} pattern. This convention is followed uniformly across memory_tool, file_tools, browser_tool, terminal_tool, and others, giving callers a reliable contract.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Uniform dataclass serialization contract",
+          "description": "SessionSource, SessionEntry, SessionContext, HomeChannel, PlatformConfig, and SessionResetPolicy all implement to_dict/from_dict classmethods with matching type annotations. Round-trip fidelity is maintained across all six dataclasses.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Return type annotations in toolsets.py inconsistent",
+          "description": "get_toolset_info returns Optional[Dict] but is annotated as Dict. get_toolset correctly uses Optional. The inconsistency suggests annotations were added piecemeal rather than reviewed systematically.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Cache dir getters have hidden mkdir side effects",
+          "description": "Three get_*_cache_dir() functions in base.py create directories on every call. The 'get' prefix hides the mutation, though the side effect is idempotent and harmless in practice.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    },
+    "logic_clarity": {
+      "add": [
+        {
+          "header": "No dead code after return/raise",
+          "description": "AST scan of all production files found zero instances of unreachable code after unconditional return or raise statements at function body level, indicating disciplined control flow termination.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "No boolean simplification anti-patterns",
+          "description": "No if x: return True else: return False patterns or return True if x else False ternaries found in production code. Boolean logic is expressed directly.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Scattered identical-branch if/else statements",
+          "description": "Four separate files contain if/else constructs where both branches execute identical code, likely from iterative development where a planned distinction was never implemented.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Async-without-await in tool handlers by registry contract",
+          "description": "rl_training_tool.py declares 9 async functions that never await, registered with is_async=True. This is framework-driven (the tool dispatcher uses await) but means these functions are synchronous code wrapped in async, adding coroutine overhead without benefit.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Clean control flow in main dispatch paths",
+          "description": "The gateway message dispatch, agent conversation loop, and command handling all use straightforward if/elif chains and early returns. A developer can trace message flow without encountering surprising branches or convoluted logic.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    },
+    "type_safety": {
+      "add": [
+        {
+          "header": "Gateway dataclasses have thorough Optional annotations",
+          "description": "SessionSource, SessionEntry, SessionContext, PlatformConfig, and HomeChannel use Optional[] correctly for nullable fields and have complete return type annotations on all methods. This forms a well-typed core for the session management layer.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "ToolRegistry and BasePlatformAdapter fully annotated",
+          "description": "The tool registry public API (register, dispatch, get_definitions, query helpers) and BasePlatformAdapter abstract interface have explicit parameter and return type annotations, including proper Optional usage.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Pervasive X-typed-None-default pattern in AIAgent and stores",
+          "description": "AIAgent.__init__ has ~10 parameters typed as str/int/callable that default to None without Optional. SessionStore.update_session, PairingStore methods, and HermesControl._request repeat the pattern. This undermines static analysis across the main orchestration class.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "String-typed discriminated unions for api_mode and reset mode",
+          "description": "AIAgent.api_mode (3 values, 50+ comparisons) and SessionResetPolicy.mode (4 values, 6 comparisons) use bare str instead of Literal or Enum. These are the two most safety-critical discriminators in the codebase, controlling API dispatch and session lifecycle.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Type-ignore comments are minimal and explained",
+          "description": "Only 4 type-ignore comments in production code, all on conditional imports (aiohttp, backports.zoneinfo, anthropic SDK) where the pattern is standard for optional dependencies.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  },
+  "review_scope": {
+    "reviewed_files_count": 0,
+    "successful_batch_count": 20,
+    "full_sweep_included": false,
+    "total_files": 187,
+    "imported_dimensions": [
+      "abstraction_fitness",
+      "ai_generated_debt",
+      "api_surface_coherence",
+      "authorization_consistency",
+      "contract_coherence",
+      "convention_outlier",
+      "cross_module_architecture",
+      "dependency_health",
+      "design_coherence",
+      "error_consistency",
+      "high_level_elegance",
+      "incomplete_migration",
+      "initialization_coupling",
+      "logic_clarity",
+      "low_level_elegance",
+      "mid_level_elegance",
+      "naming_quality",
+      "package_organization",
+      "test_strategy",
+      "type_safety"
+    ]
+  },
+  "provenance": {
+    "kind": "blind_review_batch_import",
+    "blind": true,
+    "runner": "dry-run",
+    "run_stamp": "20260315_201531",
+    "created_at": "2026-03-15T20:22:16+00:00",
+    "batch_count": 20,
+    "batch_indexes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ],
+    "packet_path": "/Users/peteromalley/Documents/hermes-agent/.desloppify/review_packet_blind.json",
+    "packet_sha256": "d89572d5d9c6c9151610c8fa4c019139b29c07ca969d3e206fef08bc11d84195"
+  },
+  "assessment_coverage": {
+    "scored_dimensions": [
+      "naming_quality",
+      "logic_clarity",
+      "type_safety",
+      "contract_coherence",
+      "error_consistency",
+      "abstraction_fitness",
+      "ai_generated_debt",
+      "high_level_elegance",
+      "mid_level_elegance",
+      "low_level_elegance",
+      "cross_module_architecture",
+      "initialization_coupling",
+      "convention_outlier",
+      "dependency_health",
+      "test_strategy",
+      "api_surface_coherence",
+      "authorization_consistency",
+      "incomplete_migration",
+      "package_organization",
+      "design_coherence"
+    ],
+    "selected_dimensions": [
+      "naming_quality",
+      "logic_clarity",
+      "type_safety",
+      "contract_coherence",
+      "error_consistency",
+      "abstraction_fitness",
+      "ai_generated_debt",
+      "high_level_elegance",
+      "mid_level_elegance",
+      "low_level_elegance",
+      "cross_module_architecture",
+      "initialization_coupling",
+      "convention_outlier",
+      "dependency_health",
+      "test_strategy",
+      "api_surface_coherence",
+      "authorization_consistency",
+      "incomplete_migration",
+      "package_organization",
+      "design_coherence"
+    ],
+    "imported_dimensions": [
+      "abstraction_fitness",
+      "ai_generated_debt",
+      "api_surface_coherence",
+      "authorization_consistency",
+      "contract_coherence",
+      "convention_outlier",
+      "cross_module_architecture",
+      "dependency_health",
+      "design_coherence",
+      "error_consistency",
+      "high_level_elegance",
+      "incomplete_migration",
+      "initialization_coupling",
+      "logic_clarity",
+      "low_level_elegance",
+      "mid_level_elegance",
+      "naming_quality",
+      "package_organization",
+      "test_strategy",
+      "type_safety"
+    ],
+    "missing_dimensions": []
+  }
+}

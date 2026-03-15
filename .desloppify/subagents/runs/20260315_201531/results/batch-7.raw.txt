@@ -1,0 +1,109 @@
+{
+  "batch": "dependency_health",
+  "batch_index": 7,
+  "assessments": {
+    "dependency_health": 78.5
+  },
+  "dimension_notes": {
+    "dependency_health": {
+      "evidence": [
+        "jinja2 is declared as a core dependency in pyproject.toml and requirements.txt but is never imported or referenced in any source file",
+        "litellm, typer, and platformdirs are in core dependencies as mini-swe-agent deps, but the mini-swe-agent directory is empty (no src/)",
+        "Both requests and httpx are core dependencies serving overlapping HTTP client roles: requests in browser_tool.py and model_metadata.py, httpx in hermes_cli/ and tools/skills_hub.py (66 call sites)",
+        "requirements.txt has drifted from pyproject.toml: includes aiohttp, discord.py, python-telegram-bot as core (pyproject.toml correctly puts them in [messaging] extra), and is missing anthropic",
+        "No lock file exists for reproducible installs; most core deps are unpinned (no upper bounds or exact pins)"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Unused jinja2 dependency; three mini-swe-agent deps bundled in core for an empty subproject; dual HTTP client libraries (requests + httpx) for the same purpose; requirements.txt drift from canonical pyproject.toml"
+    }
+  },
+  "dimension_judgment": {
+    "dependency_health": {
+      "dimension_character": "The dependency set is reasonably well-organized with good use of optional extras for platform-specific packages and deferred imports for optional libraries. However, there is meaningful dependency drift: an unused core dependency (jinja2), three dependencies for a missing subproject bundled into core, and dual HTTP clients (requests and httpx) used for the same purpose across different modules. The requirements.txt convenience file has also diverged from the canonical pyproject.toml.",
+      "score_rationale": "The optional extras structure and deferred imports represent genuine positive design that would push toward 85+. However, the unused jinja2 dep, three orphaned mini-swe-agent deps in core, dual HTTP clients, and requirements.txt drift collectively represent the kind of 'why is this here?' friction that pulls toward the 80 anchor. The issues are not severe enough to materially hinder evolution (60 anchor), but a developer would encounter enough confusion to question trust in the dependency manifest, landing near 78."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "dependency_health",
+      "identifier": "unused_jinja2_dep",
+      "summary": "jinja2 is a core dependency but is never imported or used anywhere in the codebase",
+      "related_files": ["pyproject.toml", "requirements.txt"],
+      "evidence": ["grep for 'jinja' across all .py files returns zero results outside pyproject.toml and requirements.txt"],
+      "suggestion": "Remove jinja2 from dependencies in pyproject.toml and requirements.txt. If it was intended for future template rendering, add it back when actually needed.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "orphaned_mini_swe_deps",
+      "summary": "litellm, typer, and platformdirs are core deps for mini-swe-agent but that subproject directory is empty",
+      "related_files": ["pyproject.toml", "requirements.txt"],
+      "evidence": ["mini-swe-agent/ directory contains only . and .. (empty)", "litellm, typer, and platformdirs have zero imports in any project .py file", "pyproject.toml comment says '# mini-swe-agent deps (terminal tool)'"],
+      "suggestion": "Move litellm, typer, and platformdirs to a new optional extra (e.g. [mini-swe]) or remove them from core dependencies until mini-swe-agent is actually present. The terminal tool already handles the missing import gracefully.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "dual_http_clients",
+      "summary": "Both requests and httpx are core dependencies used for the same purpose (synchronous HTTP calls)",
+      "related_files": ["tools/browser_tool.py", "agent/model_metadata.py", "tools/skills_hub.py", "hermes_cli/auth.py"],
+      "evidence": ["requests used in browser_tool.py (5 calls) and model_metadata.py (1 call)", "httpx used extensively in hermes_cli/ and tools/skills_hub.py (66+ call sites)", "Both are synchronous HTTP client libraries serving the same fundamental need"],
+      "suggestion": "Consolidate on httpx since it is already the dominant client (66 vs 6 call sites) and supports both sync and async usage. Replace the 6 requests.post/get calls in browser_tool.py and model_metadata.py with httpx equivalents, then remove requests from dependencies.",
+      "confidence": "medium",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "dependency_health",
+      "identifier": "requirements_txt_drift",
+      "summary": "requirements.txt has diverged from canonical pyproject.toml: includes messaging extras as core, missing anthropic",
+      "related_files": ["requirements.txt", "pyproject.toml"],
+      "evidence": ["requirements.txt includes aiohttp>=3.9.0, discord.py>=2.0, python-telegram-bot>=20.0 as core deps; pyproject.toml correctly puts these in [messaging] optional extra", "requirements.txt is missing anthropic which is in pyproject.toml core deps", "File header says 'maintained for convenience only' but has drifted from canonical source"],
+      "suggestion": "Either regenerate requirements.txt from pyproject.toml to match the canonical source, or delete it entirely since pyproject.toml is the canonical dependency list and the file header already directs users to 'pip install -e .[all]'.",
+      "confidence": "high",
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": ["Dependency manifest not maintained as subproject structure evolved (mini-swe-agent emptied, jinja2 usage removed)"],
+    "likely_symptoms": ["requirements_txt_drift is a symptom of the root cause that the convenience file is not auto-generated"],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "dependency_health": {
+      "add": [
+        {
+          "header": "Well-structured optional dependency extras",
+          "description": "pyproject.toml uses fine-grained optional extras ([messaging], [cron], [honcho], [mcp], [pty], etc.) to keep platform-specific and heavy dependencies out of the core install. This lets users install only what they need.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Deferred imports for optional packages",
+          "description": "Optional packages like croniter, elevenlabs, simple_term_menu, and fal_client are imported at call sites with try/except and graceful fallbacks, avoiding ImportError for users who don't need those features.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "No lock file for reproducibility",
+          "description": "The project has no pip lock file or constraints file. Dependencies use version floors (>=) but no upper bounds or exact pins, relying on virtual environments for reproducibility.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Dual HTTP client libraries in core",
+          "description": "Both requests and httpx are core dependencies. httpx dominates (66+ sites) while requests is used in only 2 files (6 calls). This appears to be organic drift rather than a deliberate split by sync/async need.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,91 @@
+# Hermes capabilities conversation demo
+# Run with: python -m demo demo/scripts/hermes_capabilities.yaml -o hermes_capabilities.mp4
+# Preview: python -m demo demo/scripts/hermes_capabilities.yaml --play
+
+title: "Hermes — It Can Now"
+skin: "default"
+output:
+  width: 2560
+  height: 1440
+  final_width: 1280
+  final_height: 720
+  fps: 30
+  font_size: 22
+  font_family: "Menlo"
+
+typing_speed: 0.02
+pause_between: 0.6
+
+scenes:
+  # ── Launch ──────────────────────────────────────────────
+  - action: clear
+
+  - action: type_command
+    prefix: "~ $ "
+    command: "hermes"
+
+  - action: pause
+    duration: 0.3
+
+  - action: banner
+    model: "deephermes-3-llama-3.1-8b"
+    context: "128K"
+    session_id: "a7c3e9f1"
+    tools_count: 24
+    skills_count: 42
+
+  - action: pause
+    duration: 1.0
+
+  # ── Exchange 1: Context management ─────────────────────
+  - user: "Hey, wouldn't it be cool if agents could manage their own context?"
+    thinking_time: 0.2
+    typing_speed: 0.02
+    response: |
+      Of course. How else can you do advanced automation?
+    post_pause: 0.4
+
+  # ── Exchange 2: Self-prompting ─────────────────────────
+  - user: "And why can't they prompt themselves upon completion?"
+    thinking_time: 0.2
+    typing_speed: 0.02
+    response: |
+      Yeah definitely! We could just get them to keep on working and stay in context.
+    post_pause: 0.4
+
+  # ── Exchange 3: Model switching ────────────────────────
+  - user: "What if it could switch its own models?"
+    thinking_time: 0.2
+    typing_speed: 0.02
+    response: |
+      Yeah, I could choose the right model for the right task.
+    post_pause: 0.5
+
+  # ── Exchange 4: The reveal — zoomed in ─────────────────
+  - user: "Can Hermes do this?"
+    thinking_time: 4.0
+    typing_speed: 0.02
+    camera:
+      zoom: 1.0
+      y: 0.5
+      at: "user_start"
+      duration: 0.3
+      ease: "ease-in-out"
+    camera_response:
+      zoom: 2.8
+      x: 0.15
+      y: 0.9
+      at: "response_start"
+      duration: 0.6
+      ease: "ease-in-out"
+    response: "It can now."
+    post_pause: 3.0
+
+  # ── Hold and zoom out ──────────────────────────────────
+  - action: camera
+    zoom: 1.0
+    duration: 1.5
+    ease: "ease-out"
+
+  - action: pause
+    duration: 2.0

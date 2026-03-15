@@ -17,7 +17,6 @@ def _make_runner():
     runner._honcho_managers = {}
     runner._honcho_configs = {}
     runner._running_agents = {}
-    runner._pending_messages = {}
     runner._pending_approvals = {}
     runner._autoreply_configs = {}
     runner.adapters = {}

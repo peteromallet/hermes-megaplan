@@ -99,7 +99,7 @@ class TestGatewayQuickCommands:
         runner = GatewayRunner.__new__(GatewayRunner)
         runner.config = {"quick_commands": {"limits": {"type": "exec", "command": "echo ok"}}}
         runner._running_agents = {}
-        runner._pending_messages = {}
+
         runner._is_user_authorized = MagicMock(return_value=True)
 
         event = self._make_event("limits")
@@ -112,7 +112,7 @@ class TestGatewayQuickCommands:
         runner = GatewayRunner.__new__(GatewayRunner)
         runner.config = {"quick_commands": {"bad": {"type": "prompt", "command": "echo hi"}}}
         runner._running_agents = {}
-        runner._pending_messages = {}
+
         runner._is_user_authorized = MagicMock(return_value=True)
 
         event = self._make_event("bad")
@@ -127,7 +127,7 @@ class TestGatewayQuickCommands:
         runner = GatewayRunner.__new__(GatewayRunner)
         runner.config = {"quick_commands": {"slow": {"type": "exec", "command": "sleep 100"}}}
         runner._running_agents = {}
-        runner._pending_messages = {}
+
         runner._is_user_authorized = MagicMock(return_value=True)
 
         event = self._make_event("slow")

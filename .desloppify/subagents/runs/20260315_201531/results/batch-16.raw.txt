@@ -1,0 +1,135 @@
+{
+  "batch": "initialization_coupling",
+  "batch_index": 16,
+  "assessments": {
+    "initialization_coupling": 82.5
+  },
+  "dimension_notes": {
+    "initialization_coupling": {
+      "evidence": [
+        "tools/registry.py documents the import chain explicitly and is circular-import safe by design",
+        "hermes_constants.py is deliberately dependency-free for safe import from anywhere",
+        "Lazy initialization for Firecrawl, Honcho, file_ops clients avoids import-time side effects",
+        "gateway/run.py performs heavy import-time side effects: load_dotenv, yaml parsing, os.environ mutation across 50+ lines of module-scope code",
+        "sys.path.insert(0, ...) appears in 6 gateway platform modules and gateway/run.py at import time",
+        "TOOL_TO_TOOLSET_MAP and TOOLSET_REQUIREMENTS in model_tools.py are stale snapshots built once at module scope",
+        "DEFAULT_SUMMARIZER_MODEL in web_tools.py reads os.getenv at import time, creating a frozen snapshot"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "gateway/run.py module-scope env mutation creates test pollution risk; sys.path.insert scattered across gateway platform modules; a few import-time env reads create stale snapshots"
+    }
+  },
+  "dimension_judgment": {
+    "initialization_coupling": {
+      "dimension_character": "The codebase shows deliberate awareness of initialization coupling risks in its core architecture: the tool registry has an explicit import chain designed to prevent circularity, hermes_constants.py is intentionally dependency-free, and expensive resources use lazy initialization patterns. However, the gateway subsystem relies on sys.path manipulation at import time across 6+ modules, and the two entry points (cli.py, gateway/run.py) perform significant environment mutation at module scope, which creates fragility for tests that import these modules.",
+      "score_rationale": "The score sits at 82.5 because the core tool/agent architecture is well-designed for import safety with documented patterns, but the gateway subsystem's reliance on sys.path.insert and the entry-point environment mutation at module scope represent recurring friction points. A developer working in the gateway or writing tests against it would encounter import-order sensitivity. The stale-snapshot constants in model_tools.py are a minor maintenance risk. These issues prevent a score above 85 but don't represent a systemic problem since the main agent/tool import chain is clean."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "gateway_run_import_side_effects",
+      "summary": "gateway/run.py performs dotenv loading, YAML parsing, and os.environ mutation at module scope",
+      "related_files": ["gateway/run.py"],
+      "evidence": [
+        "Lines 36-44: load_dotenv called at module scope, reading ~/.hermes/.env",
+        "Lines 48-99: config.yaml parsed at module scope, bridging ~20 terminal/compression settings into os.environ",
+        "Any test importing GatewayRunner triggers file I/O and environment pollution"
+      ],
+      "suggestion": "Move the dotenv loading and config.yaml bridging into a function like _bootstrap_environment() called explicitly by start_gateway() and the GatewayRunner constructor, rather than at module scope. Tests can call it explicitly or skip it.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "sys_path_insert_gateway_modules",
+      "summary": "sys.path.insert(0, ...) at import time in 6 gateway platform modules pollutes sys.path",
+      "related_files": [
+        "gateway/platforms/base.py",
+        "gateway/platforms/telegram.py",
+        "gateway/platforms/discord.py",
+        "gateway/platforms/whatsapp.py",
+        "gateway/platforms/slack.py",
+        "gateway/platforms/signal.py",
+        "gateway/run.py"
+      ],
+      "evidence": [
+        "gateway/platforms/base.py:24: sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))",
+        "Same pattern repeated in telegram.py:48, discord.py:31, whatsapp.py:66, slack.py:30, run.py:30",
+        "Each import appends a duplicate entry to sys.path; order of imports affects module resolution"
+      ],
+      "suggestion": "Install the project as a package (pip install -e .) or use a single conftest/bootstrap that sets sys.path once. The gateway modules should use relative imports (from gateway.config import ...) which already work when the package is properly installed.",
+      "confidence": "high",
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "initialization_coupling",
+      "identifier": "model_tools_stale_snapshots",
+      "summary": "TOOL_TO_TOOLSET_MAP and TOOLSET_REQUIREMENTS are stale snapshots built once at import time",
+      "related_files": ["model_tools.py"],
+      "evidence": [
+        "Lines 122-124: module-level constants computed from registry after _discover_tools()",
+        "batch_runner.py:52 uses ALL_POSSIBLE_TOOLS = set(TOOL_TO_TOOLSET_MAP.keys()) which is frozen at import",
+        "If any tool registration occurs after model_tools import (e.g. dynamic plugin loading), these maps silently diverge from the registry"
+      ],
+      "suggestion": "Replace the module-level constants with thin functions that delegate to the registry: e.g. def get_tool_to_toolset_map(): return registry.get_tool_to_toolset_map(). Callers already have registry access via the import.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The gateway subsystem predates proper package installation, leading to sys.path manipulation as a workaround",
+      "Entry-point modules (cli.py, gateway/run.py) conflate bootstrap logic with importable module content"
+    ],
+    "likely_symptoms": [],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "initialization_coupling": {
+      "add": [
+        {
+          "header": "Documented circular-import-safe tool registry chain",
+          "description": "tools/registry.py has no imports from model_tools or tool files; tool files import from registry; model_tools imports both. This three-layer chain is documented in the module docstring and prevents circular imports by construction.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Import-safe constants module (hermes_constants.py)",
+          "description": "hermes_constants.py is explicitly designed with no dependencies, providing URL constants that any module can import without risk of boot-order issues or circular imports.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Lazy client initialization pattern",
+          "description": "Expensive clients (Firecrawl, Honcho, auxiliary OpenAI) use module-level None sentinels with get-or-create functions, deferring network connections and credential resolution until first use rather than import time.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "hermes_time lazy caching with reset_cache()",
+          "description": "Timezone resolution does file I/O (config.yaml) but is deferred to first call of now() and cached, with an explicit reset_cache() for tests. Good pattern for config that requires I/O.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Gateway sys.path manipulation at import time",
+          "description": "Six gateway platform modules and gateway/run.py each call sys.path.insert(0, ...) at module scope to find the project root. This creates duplicate sys.path entries and couples import behavior to filesystem structure rather than proper packaging.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Entry-point environment mutation at module scope",
+          "description": "cli.py and gateway/run.py load .env files and mutate os.environ at module scope rather than inside their main() functions. Tests importing these modules inherit environment side effects.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

@@ -1,24 +1,27 @@
 """
 Hermes control client — lightweight module for external tools to control
-a running Hermes gateway.
-
-This is the module desloppify (or any external tool) imports to switch
-models, list sessions, etc. on a live Hermes instance.
+a running Hermes instance (CLI or gateway).
 
 Usage:
     from gateway.hermes_control_client import HermesControl
 
     ctl = HermesControl()  # auto-discovers port from ~/.hermes/control_api.port
 
-    # Switch model on whichever agent is running
-    result = ctl.switch_model("openrouter", "anthropic/claude-sonnet-4")
+    # Send a message (interrupt mode — stops current work)
+    ctl.send_message("Focus on this instead")
 
-    # Switch model on a specific session
-    result = ctl.switch_model("openrouter", "anthropic/claude-sonnet-4",
-                              session_key="agent:main:telegram:12345")
+    # Queue a message (processed after current work finishes)
+    ctl.send_message("When you're done, also check logs", mode="queue")
+
+    # Send a slash command
+    ctl.send_message("/reset")
+    ctl.send_message("/model openrouter:anthropic/claude-sonnet-4")
 
     # List running sessions
     sessions = ctl.list_sessions()
+
+    # List available commands
+    commands = ctl.list_commands()
 
 Zero dependencies beyond stdlib (uses urllib, not requests/aiohttp).
 """
@@ -34,7 +37,7 @@ PORT_FILE = os.path.expanduser("~/.hermes/control_api.port")
 
 
 class HermesControl:
-    """Client for the Hermes gateway control API."""
+    """Client for the Hermes control API."""
 
     def __init__(self, host: str = "127.0.0.1", port: Optional[int] = None):
         if port is None:
@@ -66,6 +69,8 @@ class HermesControl:
         except urllib.error.URLError as e:
             return {"error": f"Cannot reach Hermes control API: {e.reason}"}
 
+    # ── Read-only endpoints ────────────────────────────────────────────
+
     def health(self) -> dict:
         """Check if the control API is running."""
         return self._request("GET", "/health")
@@ -74,56 +79,60 @@ class HermesControl:
         """List all running agent sessions."""
         return self._request("GET", "/sessions")
 
-    def get_session(self, session_key: str) -> dict:
+    def get_session(self, session_key: str = "_any") -> dict:
         """Get info about a specific session."""
         return self._request("GET", f"/sessions/{session_key}")
 
-    def control(self, command: str, session_key: str = "_any", **params) -> dict:
-        """Send a generic control command to a running agent.
+    def list_commands(self) -> dict:
+        """List available slash commands."""
+        return self._request("GET", "/commands")
 
-        Args:
-            command: Command name (e.g., "switch_model", "compact_context").
-            session_key: Session to target. "_any" targets the first running agent.
-            **params: Additional parameters forwarded to the command handler.
+    # ── Message injection ──────────────────────────────────────────────
 
-        Returns:
-            Dict with success/failure info.
-        """
-        return self._request("POST", f"/sessions/{session_key}/control",
-                             {"command": command, **params})
-
-    def switch_model(
+    def send_message(
         self,
-        provider: str,
-        model: str,
+        text: str,
         session_key: str = "_any",
-        reason: str = "",
+        mode: str = "interrupt",
     ) -> dict:
-        """Switch the model on a running agent session.
+        """Send a message (or /command) into a running session.
 
         Args:
-            provider: Provider ID (e.g., "openrouter", "anthropic")
-            model: Model ID (e.g., "anthropic/claude-sonnet-4")
-            session_key: Session to switch. "_any" switches the first running agent.
-            reason: Optional reason string (logged by Hermes).
-
-        Returns:
-            Dict with success/failure and previous/current model info.
+            text: Message text or slash command (e.g., "hello", "/reset").
+            session_key: Session to target. "_any" targets the first running session.
+            mode: "interrupt" (default) stops current work; "queue" waits for it to finish.
         """
-        return self._request("POST", f"/sessions/{session_key}/switch-model", {
-            "provider": provider,
-            "model": model,
-            "reason": reason or "desloppify",
+        return self._request("POST", f"/sessions/{session_key}/message", {
+            "text": text,
+            "mode": mode,
         })
 
-    def compact_context(self, session_key: str = "_any") -> dict:
-        """Force context compaction on a running agent session."""
-        return self.control("compact_context", session_key)
+    # ── Convenience methods ────────────────────────────────────────────
+
+    def switch_model(self, provider: str, model: str, **kw) -> dict:
+        """Switch model via /model command."""
+        return self.send_message(f"/model {provider}:{model}", **kw)
+
+    def compact_context(self, **kw) -> dict:
+        """Trigger context compaction."""
+        return self.send_message("/compact", **kw)
+
+    def reset(self, **kw) -> dict:
+        """Reset conversation history."""
+        return self.send_message("/reset", **kw)
+
+    def stop(self, **kw) -> dict:
+        """Stop the running agent."""
+        return self.send_message("/stop", **kw)
+
+    def is_autoreply_enabled(self, session_key: str = "_any") -> bool:
+        """Check if autoreply is enabled for a session."""
+        info = self.get_session(session_key)
+        return bool(info.get("autoreply", {}).get("enabled"))
 
     def is_available(self) -> bool:
-        """Check if a Hermes gateway with control API is reachable."""
+        """Check if a Hermes instance with control API is reachable."""
         try:
-            result = self.health()
-            return result.get("status") == "ok"
+            return self.health().get("status") == "ok"
         except Exception:
             return False

@@ -1,0 +1,122 @@
+{
+  "batch": "incomplete_migration",
+  "batch_index": 14,
+  "assessments": {
+    "incomplete_migration": 82.5
+  },
+  "dimension_notes": {
+    "incomplete_migration": {
+      "evidence": [
+        "SQLite + JSONL dual-write in gateway/session.py with 'during transition' comment but no migration completion plan",
+        "Deprecated on_auto_reset parameter still in SessionStore.__init__ signature (line 334) though never used",
+        "HERMES_TOOL_PROGRESS_MODE env var deprecated in config but still read as fallback in gateway/run.py:3297",
+        "_LEGACY_TOOLSET_MAP in model_tools.py provides backward compat for old _tools-suffixed toolset names — well-documented and tested",
+        "Config key coexistence: env_type/backend both accepted in cli.py terminal config with clear precedence",
+        "_normalize_max_turns_config handles legacy root-level max_turns in two separate locations (cli.py:266, hermes_cli/config.py:843)"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "SQLite/JSONL dual-write transition has no completion timeline; deprecated on_auto_reset parameter lingers in signature; deprecated env vars still actively read as fallback in production code"
+    }
+  },
+  "dimension_judgment": {
+    "incomplete_migration": {
+      "dimension_character": "The codebase has several active migration zones — most notably the SQLite/JSONL dual-write for session transcripts and the legacy toolset name mapping — but they are consistently well-documented with clear comments explaining the 'why'. Deprecated symbols are marked but sometimes linger as dead parameters or fallback paths. The overall impression is of migrations that were started with clear intent but not fully concluded, leaving a moderate amount of old+new coexistence that a developer would need to navigate.",
+      "score_rationale": "The codebase earns credit for clearly documenting every backward-compat layer and having tests for legacy paths (e.g. TestLegacyToolsetMap, test_legacy_root_max_turns). However, the SQLite/JSONL dual-write is a subsystem-level incomplete migration with no timeline, the deprecated on_auto_reset parameter persists in the public API, and deprecated env vars are still read at runtime. These create moderate 'which pattern should I follow?' friction, placing this solidly in the 80-85 range."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "incomplete_migration",
+      "identifier": "sqlite_jsonl_dual_write",
+      "summary": "Session transcript dual-writes to both SQLite and JSONL with no migration completion plan",
+      "related_files": ["gateway/session.py", "gateway/run.py"],
+      "evidence": [
+        "gateway/session.py:723 comment says 'keeps existing tooling working during transition' but there is no TODO/timeline for removing JSONL",
+        "append_to_transcript always writes JSONL unconditionally (line 724-726) even when SQLite succeeds",
+        "rewrite_transcript (line 728) also dual-writes to both stores",
+        "load_transcript (line 756) reads from SQLite first, falls back to JSONL — the read path is already migrated but writes are not"
+      ],
+      "suggestion": "Add a concrete TODO with a condition for removing JSONL writes (e.g., 'Remove JSONL writes after confirming no external tooling reads .jsonl files directly'). Consider making JSONL writes opt-in via a config flag so the migration can be completed incrementally.",
+      "confidence": "high",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "dimension": "incomplete_migration",
+      "identifier": "deprecated_on_auto_reset_param",
+      "summary": "Deprecated on_auto_reset parameter still accepted by SessionStore.__init__ but never used",
+      "related_files": ["gateway/session.py"],
+      "evidence": [
+        "gateway/session.py:334 accepts on_auto_reset=None with comment 'deprecated — memory flush now runs proactively'",
+        "No caller passes this parameter (confirmed via grep of all SessionStore instantiations)",
+        "The parameter is not stored or used in any method"
+      ],
+      "suggestion": "Remove the on_auto_reset parameter from SessionStore.__init__ since no caller passes it.",
+      "confidence": "high",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "incomplete_migration",
+      "identifier": "deprecated_env_var_still_read",
+      "summary": "Deprecated HERMES_TOOL_PROGRESS_MODE env var still read as active fallback in gateway/run.py",
+      "related_files": ["gateway/run.py", "hermes_cli/config.py"],
+      "evidence": [
+        "hermes_cli/config.py:548-560 marks HERMES_TOOL_PROGRESS and HERMES_TOOL_PROGRESS_MODE as deprecated",
+        "gateway/run.py:3297 still reads os.getenv('HERMES_TOOL_PROGRESS_MODE') as the second-priority fallback for progress_mode",
+        "The config migration system (hermes_cli/config.py:682-689) already converts these env vars into config.yaml values"
+      ],
+      "suggestion": "Remove the os.getenv('HERMES_TOOL_PROGRESS_MODE') fallback from gateway/run.py:3297 since the config migration system already handles converting old env vars to config.yaml entries. This would complete the deprecation.",
+      "confidence": "medium",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "Migrations are started with good documentation but lack explicit completion criteria or timelines, causing them to stall in the dual-support phase"
+    ],
+    "likely_symptoms": [
+      "deprecated_on_auto_reset_param"
+    ],
+    "possible_false_positives": []
+  },
+  "context_updates": {
+    "incomplete_migration": {
+      "add": [
+        {
+          "header": "Legacy toolset names well-documented and tested",
+          "description": "_LEGACY_TOOLSET_MAP in model_tools.py provides backward compat for old _tools-suffixed names. It has dedicated tests (TestLegacyToolsetMap) and clear usage in get_tool_definitions(). This is an intentional compat layer with active callers.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Config normalization handles legacy keys cleanly",
+          "description": "_normalize_max_turns_config and _normalize_recall_mode are clean one-directional transforms that silently upgrade old config formats. They run on every config load without side effects.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "SQLite/JSONL dual-write in active transition",
+          "description": "Session transcripts are written to both SQLite and JSONL. Reads prefer SQLite with JSONL fallback. The write side has not been migrated to SQLite-only, leaving indefinite dual-write overhead. Comment says 'during transition' but no completion criteria exist.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "Deprecated env vars with migration path",
+          "description": "HERMES_TOOL_PROGRESS and HERMES_TOOL_PROGRESS_MODE are deprecated in favor of config.yaml. The config migration system auto-converts them, but gateway/run.py still reads the old env var as a fallback, keeping the deprecated path alive.",
+          "settled": true,
+          "positive": false
+        },
+        {
+          "header": "OpenClaw migration is a proper optional skill",
+          "description": "The openclaw-migration skill is structured under optional-skills/ with its own CLI entry points (hermes claw migrate), comprehensive tests, and preset system. This is a well-bounded, intentional migration tool rather than leftover shim code.",
+          "settled": true,
+          "positive": true
+        }
+      ]
+    }
+  }
+}

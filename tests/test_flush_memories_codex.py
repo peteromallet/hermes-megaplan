@@ -104,7 +104,7 @@ class TestFlushMemoriesUsesAuxiliaryClient:
                 {"role": "assistant", "content": "Hi there"},
                 {"role": "user", "content": "Remember this"},
             ]
-            with patch("tools.memory_tool.memory_tool", return_value="Saved.") as mock_memory:
+            with patch("tools.memory_tool.memory_tool", return_value="Saved."):
                 agent.flush_memories(messages)
 
         mock_call.assert_called_once()

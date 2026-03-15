@@ -1,0 +1,120 @@
+{
+  "batch": "api_surface_coherence",
+  "batch_index": 11,
+  "assessments": {
+    "api_surface_coherence": 82.5
+  },
+  "dimension_notes": {
+    "api_surface_coherence": {
+      "evidence": [
+        "All 8 platform adapters implement send() with identical signature (chat_id, content, reply_to, metadata) matching the abstract base class definition in base.py:388",
+        "All platform adapters implement connect() -> bool and disconnect() -> None with consistent shapes",
+        "HermesControl client mirrors the ControlAPI server endpoints 1:1 with clear sync-only API (no mixed sync/async)",
+        "Tool registry.register() provides a uniform registration interface used consistently across 20+ tool files",
+        "cache_document_from_bytes(data, filename) breaks the pattern established by cache_image_from_bytes(data, ext) and cache_audio_from_bytes(data, ext) — the second parameter has different semantics",
+        "build_source() in BasePlatformAdapter has 9 parameters (self + 8), exceeding the >5 threshold for API boundary concerns, though all are optional kwargs with sensible defaults",
+        "GatewayRunner._autoreply_configs uses Dict[str, Dict[str, Any]] — an untyped dict bag for autoreply state rather than a dataclass, making the shape implicit",
+        "handle_function_call() has 5 parameters (function_name, function_args, task_id, user_task, enabled_tools) — at the threshold but each serves a distinct purpose",
+        "ControlAPI.send_message checks hasattr(result, '__await__') to handle sync/async callers — duck-typed async detection rather than explicit interface"
+      ],
+      "impact_scope": "subsystem",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "high",
+      "issues_preventing_higher_score": "cache_*_from_bytes functions have inconsistent second-parameter semantics across the same module. build_source has 9 parameters that could be simplified. Autoreply config uses untyped dict bags instead of a dataclass."
+    }
+  },
+  "dimension_judgment": {
+    "api_surface_coherence": {
+      "dimension_character": "The codebase has a strong foundation of API coherence, particularly in its platform adapter interface where all 8 adapters faithfully implement the abstract base class with identical send/connect/disconnect signatures. The ToolRegistry and HermesControl client provide clean, predictable interfaces. However, there are isolated inconsistencies in the media cache utilities (different parameter semantics for similar functions) and some wide parameter lists at internal boundaries that create minor friction.",
+      "score_rationale": "The platform adapter hierarchy is exemplary — a developer seeing one adapter can predict all others. The tool registration and control API surfaces are similarly predictable. The score is pulled down from ~90 by the cache utility inconsistency (developers must check which cache function they're calling to know what the second param means), the wide build_source signature, and the use of untyped dict bags for autoreply config. These are localized issues in an otherwise coherent surface, placing this solidly above 80."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "cache_param_inconsistency",
+      "summary": "cache_document_from_bytes takes filename while sibling functions take ext — inconsistent parameter semantics",
+      "related_files": ["gateway/platforms/base.py"],
+      "evidence": [
+        "cache_image_from_bytes(data: bytes, ext: str = '.jpg') at line 55",
+        "cache_audio_from_bytes(data: bytes, ext: str = '.ogg') at line 137",
+        "cache_document_from_bytes(data: bytes, filename: str) at line 205 — second param is a full filename, not an extension"
+      ],
+      "suggestion": "Unify the second parameter across all three functions. cache_document_from_bytes legitimately needs a filename (not just extension) for human-readable names. The simplest fix is to add an optional filename parameter to the image/audio variants too, or document the intentional divergence with a comment explaining why documents differ.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "build_source_wide_params",
+      "summary": "build_source() has 9 parameters — consider grouping related identity fields",
+      "related_files": ["gateway/platforms/base.py"],
+      "evidence": [
+        "build_source at line 858 takes: chat_id, chat_name, chat_type, user_id, user_name, thread_id, chat_topic, user_id_alt, chat_id_alt — 8 keyword args plus self",
+        "All callers use keyword arguments and most pass 4-6 of the 8, so the width is manageable but the method is essentially a SessionSource constructor proxy"
+      ],
+      "suggestion": "This is borderline — the function serves as a thin factory that injects self.platform. Since all parameters are optional kwargs and callers use keyword syntax, the practical impact is low. If it grows further, consider accepting a partial SessionSource or a dict. No urgent change needed.",
+      "confidence": "low",
+      "impact_scope": "local",
+      "fix_scope": "single_edit"
+    },
+    {
+      "dimension": "api_surface_coherence",
+      "identifier": "autoreply_config_untyped_dict",
+      "summary": "Autoreply configuration uses Dict[str, Any] instead of a typed structure",
+      "related_files": ["gateway/run.py"],
+      "evidence": [
+        "_autoreply_configs: Dict[str, Dict[str, Any]] at line 278 stores {prompt, model, max_turns, turn_count} as an untyped dict",
+        "Accessed via .get() with implicit key assumptions at lines 282-289, 1475, 1608, 1616, 2033, 2039"
+      ],
+      "suggestion": "Define an AutoreplyConfig dataclass with prompt: str, model: Optional[str], max_turns: int, turn_count: int fields. This makes the API shape explicit and prevents key typos. The dataclass can live in gateway/run.py near the usage site.",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "single_edit"
+    }
+  ],
+  "retrospective": {
+    "root_causes": [
+      "The cache utilities were likely added incrementally (images first, then audio, then documents) with the document variant needing richer naming, causing parameter drift"
+    ],
+    "likely_symptoms": [],
+    "possible_false_positives": ["build_source_wide_params — the function's width is justified by SessionSource having many optional fields and all callers using kwargs"]
+  },
+  "context_updates": {
+    "api_surface_coherence": {
+      "add": [
+        {
+          "header": "Consistent platform adapter interface",
+          "description": "All 8 platform adapters (Telegram, Discord, WhatsApp, Slack, Signal, Email, Home Assistant, plus the abstract base) share identical send/connect/disconnect signatures. A developer seeing one adapter can predict the shape of all others.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Uniform tool registration API",
+          "description": "The ToolRegistry.register() method provides a single registration interface that all 20+ tool files use consistently. Schema, handler, check_fn, and metadata follow the same shape everywhere.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Clean sync-only control client",
+          "description": "HermesControl (the client) is entirely synchronous using stdlib urllib, while ControlAPI (the server) is entirely async using aiohttp. No mixed sync/async within either module's public API.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Consistent dataclass serialization pattern",
+          "description": "SessionSource, SessionEntry, HomeChannel, PlatformConfig, DeliveryTarget all follow the same to_dict/from_dict class method pattern for serialization, making the API predictable across the gateway subsystem.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Cache utility parameter drift",
+          "description": "cache_document_from_bytes takes a filename parameter where cache_image_from_bytes and cache_audio_from_bytes take an ext parameter. The document variant legitimately needs richer naming but breaks the sibling pattern without explanation.",
+          "settled": true,
+          "positive": false
+        }
+      ]
+    }
+  }
+}

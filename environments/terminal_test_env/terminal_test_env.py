@@ -213,7 +213,6 @@ class TerminalTestEnv(HermesAgentBaseEnv):
         Logs accuracy metrics.
         """
         start_time = time.time()
-        correct = 0
         total = len(self.eval_tasks)
         samples = []
 
