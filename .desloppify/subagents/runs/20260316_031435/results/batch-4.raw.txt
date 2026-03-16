@@ -1,0 +1,53 @@
+{
+  "batch": "error_consistency",
+  "batch_index": 4,
+  "assessments": {
+    "error_consistency": 84.5
+  },
+  "dimension_notes": {
+    "error_consistency": {
+      "evidence": [
+        "gateway/session.py uses specific sqlite3.Error catches with logging at appropriate levels (post-fix per historical)",
+        "cli.py contains multiple broad 'except Exception:' primarily for optional imports and UI resilience (intentional per resolved issues)",
+        "Core platform adapters (gateway/platforms/*.py) consistently propagate errors with context or use targeted excepts",
+        "No major silent swallowing in I/O boundaries beyond top-level handlers; exception_hotspots confirm concentration in CLI/env",
+        "Error strategies vary by layer (throws in libs, resilience catches in entrypoints) but follow documented skip criteria"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Minor remaining broad catches in non-core CLI paths could benefit from more specific exceptions"
+    }
+  },
+  "dimension_judgment": {
+    "error_consistency": {
+      "dimension_character": "Error handling shows consistent logging and specific exception types in core modules (sqlite3.Error, ValueError, OSError) with proper propagation. CLI and environment files use broader resilience patterns as intentional top-level boundaries. Historical fixes improved logging levels and custom error usage.",
+      "score_rationale": "Anchored at high 80s due to layer-appropriate strategies and post-fix improvements in session/gateway files. Avoids common pitfalls like lost context or bare excepts in production code. Would reach 90+ with stricter typing for error contracts in a few boundary functions."
+    }
+  },
+  "issues": [],
+  "retrospective": {
+    "root_causes": [
+      "CLI entrypoints require resilience to optional deps and user errors"
+    ],
+    "likely_symptoms": [
+      "broad_except counts in cli.py and environment files"
+    ],
+    "possible_false_positives": [
+      "wontfix broad exceptions marked as intentional in prior reviews"
+    ]
+  },
+  "context_updates": {
+    "error_consistency": {
+      "add": [
+        {
+          "header": "Layered error strategies in gateway/CLI",
+          "description": "Core uses specific exceptions with logging; CLI uses broad catches for robustness at user boundaries. This is deliberate separation per rubric skip rules.",
+          "settled": true,
+          "positive": true
+        }
+      ],
+      "settle": []
+    }
+  }
+}

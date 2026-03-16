@@ -1,0 +1,65 @@
+{
+  "batch": "abstraction_fitness",
+  "batch_index": 6,
+  "assessments": {
+    "abstraction_fitness": 76.5
+  },
+  "dimension_notes": {
+    "abstraction_fitness": {
+      "evidence": [
+        "Pass-through wrappers identified in 9 files (wrapper_rate=0.018) including demo scenes, gateway modules, and tests",
+        "Facade modules detected: gateway/__init__.py (34 LOC reexports with 0 importers), platforms/__init__.py",
+        "Generic utils.py serving as cross-cutting helper surface for atomic writes, YAML/JSON handling",
+        "Large monolithic classes (e.g. AIAgent in run_agent.py with 61 methods, BasePlatformAdapter) accumulate mixed responsibilities",
+        "No delegation-heavy classes or one-impl protocols flagged; good interface honesty overall",
+        "Some wide param bags noted in complexity hotspots but resolved as wontfix in past"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "medium",
+      "sub_axes": {
+        "abstraction_leverage": 85.0,
+        "indirection_cost": 72.0,
+        "interface_honesty": 88.0,
+        "delegation_density": 95.0,
+        "definition_directness": 70.0,
+        "type_discipline": 65.0
+      }
+    }
+  },
+  "dimension_judgment": {
+    "abstraction_fitness": {
+      "dimension_character": "Codebase maintains good direct module access and domain-bounded packages for platforms and tools, but generic helper layers (utils, facades, large multi-concern classes) introduce moderate indirection. Avoids most needless abstractions with low wrapper rate and no overused single-impl protocols.",
+      "score_rationale": "Score reflects strong abstraction leverage and delegation patterns (high subscores) offset by definition directness issues in large files and reliance on generic utilities instead of more focused packages. Better than many AI-generated codebases but not fully streamlined; aligns with 70-80 range where some holistic cleanup would elevate it further."
+    }
+  },
+  "issues": [],
+  "retrospective": {
+    "root_causes": [
+      "Preference for shared utility modules over tighter domain-specific packages",
+      "Growth of core runner classes into god objects"
+    ],
+    "likely_symptoms": [
+      "facade detectors on package inits",
+      "structural hotspots in run_agent.py and gateway files"
+    ],
+    "possible_false_positives": [
+      "Intentional public API facades and test helper passthroughs"
+    ]
+  },
+  "context_updates": {
+    "abstraction_fitness": {
+      "add": [
+        {
+          "header": "Moderate indirection in core runners",
+          "description": "Large classes in run_agent.py and gateway/run.py serve as coordination hubs with some forwarding elements; direct domain logic is bounded but navigation cost exists due to size.",
+          "settled": false,
+          "positive": false
+        }
+      ],
+      "settle": [
+        "Low wrapper rate supports fitness"
+      ]
+    }
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "batch": "design_coherence",
+  "batch_index": 4,
+  "assessments": {
+    "design_coherence": 76.5
+  },
+  "dimension_notes": {
+    "design_coherence": {
+      "evidence": [
+        "gateway/platforms/telegram.py (962 LOC) and email.py (532 LOC) concentrate platform logic but stay within domain boundaries",
+        "agent/autoreply.py parse_autoreply_args handles multiple command variants with complex branching (high cyclomatic)",
+        "Many files show broad except blocks and swallowed errors but these are more error consistency than structural design",
+        "build_welcome_banner takes 6+ params but parameters have distinct display roles rather than cohesive config object"
+      ],
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor",
+      "confidence": "medium",
+      "issues_preventing_higher_score": "Large platform adapters mix protocol, parsing, and state handling; parser functions have high decision density."
+    }
+  },
+  "dimension_judgment": {
+    "design_coherence": {
+      "dimension_character": "The codebase shows generally focused modules for domain tasks like platform adapters and agent logic, but suffers from some large files accumulating coordination logic and functions with dense branching that blur responsibilities. Positive patterns include clear separation between CLI and gateway consumers for autoreply but repeated structural patterns in error handling and arg parsing indicate untapped opportunities for data-driven approaches.",
+      "score_rationale": "Anchoring at 80 for mostly coherent structures with isolated hot spots; deducted to 76.5 due to recurring high complexity in key files like telegram.py and multiple parser/execution methods in run_agent.py that each mix responsibilities. This creates friction where developers must parse large functions rather than compose focused units. Not lower because the mixing is contained to areas with genuinely complex integration needs."
+    }
+  },
+  "issues": [
+    {
+      "dimension": "design_coherence",
+      "identifier": "telegram_platform_bloat",
+      "summary": "Telegram adapter mixes too many responsibilities in single large file",
+      "related_files": ["gateway/platforms/telegram.py"],
+      "evidence": ["962 LOC file handling updates, commands, media, state, and multiple handlers"],
+      "suggestion": "Extract command handlers and media processors to separate modules under gateway/platforms/telegram/",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    },
+    {
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "19c93f815c9634d6",
+      "dimension": "design_coherence",
+      "identifier": "autoreply_parser_review",
+      "summary": "Autoreply arg parser complexity is acceptable for its role",
+      "related_files": ["agent/autoreply.py"],
+      "evidence": ["Single coherent responsibility for command parsing despite branching"],
+      "reasoning": "Follows skip rule for functions with single coherent responsibility even if long",
+      "confidence": "high"
+    },
+    {
+      "concern_verdict": "dismissed",
+      "concern_fingerprint": "4f4cdd68f31e88d8",
+      "dimension": "design_coherence",
+      "identifier": "model_metadata_design",
+      "summary": "Global mutable in model_metadata acceptable given context",
+      "related_files": ["agent/model_metadata.py"],
+      "evidence": ["Metadata registry pattern common in such modules"],
+      "reasoning": "Not a structural design violation per rubric",
+      "confidence": "medium"
+    },
+    {
+      "concern_verdict": "confirmed",
+      "concern_fingerprint": "8763e18e818e7c37",
+      "dimension": "design_coherence",
+      "identifier": "email_platform_size",
+      "summary": "Email platform file accumulates multiple concerns",
+      "related_files": ["gateway/platforms/email.py"],
+      "evidence": ["532 line file flagged for structural complexity"],
+      "suggestion": "Split email-specific sending logic from general platform integration",
+      "confidence": "medium",
+      "impact_scope": "module",
+      "fix_scope": "multi_file_refactor"
+    }
+  ],
+  "retrospective": {
+    "root_causes": ["Platform adapters growing without extraction of sub-responsibilities", "Parser functions handling CLI-like syntax without dedicated parser objects"],
+    "likely_symptoms": ["high cyclomatic, large files in gateways"],
+    "possible_false_positives": ["domain_complexity_misclassified_as_mixed_responsibilities"]
+  },
+  "context_updates": {
+    "design_coherence": {
+      "add": [
+        {
+          "header": "Platform adapters concentrate integration logic",
+          "description": "Telegram and email platforms keep all protocol specifics in one file per platform; this keeps boundaries clear even if files grow large.",
+          "settled": true,
+          "positive": true
+        },
+        {
+          "header": "Complex command parsing in autoreply",
+          "description": "Argument parsing in autoreply.py mixes flag handling and validation in one function - illustrates density but serves single purpose.",
+          "settled": true,
+          "positive": false
+        }
+      ],
+      "settle": []
+    }
+  }
+}

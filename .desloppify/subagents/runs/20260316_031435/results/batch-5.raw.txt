@@ -1,0 +1,52 @@
+{
+  "batch": "naming_quality",
+  "batch_index": 5,
+  "assessments": {
+    "naming_quality": 88.5
+  },
+  "dimension_notes": {
+    "naming_quality": {
+      "evidence": [
+        "Widespread use of descriptive snake_case names like web_search, transcribe_audio, build_session_key",
+        "Gateway event handlers follow 'handle_message', 'handle_command' pattern consistently - acceptable per skip rules for framework-like code",
+        "CLI command handlers use 'run_*' and 'do_*' but historical review marked as convention for this codebase",
+        "No major name/behavior mismatches observed in core modules"
+      ],
+      "impact_scope": "codebase",
+      "fix_scope": "single_edit",
+      "confidence": "high",
+      "issues_preventing_higher_score": "Residual generic verbs in legacy scripts and test utils that follow established but non-ideal patterns"
+    }
+  },
+  "dimension_judgment": {
+    "naming_quality": {
+      "dimension_character": "Naming is generally communicative and consistent with Python conventions and project norms. The codebase favors intention-revealing names in domain logic while tolerating established generic prefixes in CLI and handler contexts.",
+      "score_rationale": "Anchored against global standards: strong on vocabulary consistency and avoiding bad mismatches (score 88.5). Minor deductions for areas where more specific verbs could be used but not severe enough to warrant refactoring given history of wontfix decisions."
+    }
+  },
+  "issues": [],
+  "retrospective": {
+    "root_causes": [
+      "Historical CLI action handler convention using do_/run_ prefixes"
+    ],
+    "likely_symptoms": [],
+    "possible_false_positives": [
+      "do_* functions in skills_hub.py"
+    ]
+  },
+  "context_updates": {
+    "naming_quality": {
+      "add": [
+        {
+          "header": "Strong domain naming in tools/",
+          "description": "Tool modules use precise action-oriented names matching their registered capabilities, aiding discoverability.",
+          "settled": true,
+          "positive": true
+        }
+      ],
+      "settle": [
+        "Snake case convention"
+      ]
+    }
+  }
+}

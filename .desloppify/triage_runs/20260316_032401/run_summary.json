@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-03-16T03:24:12+00:00",
+  "run_stamp": "20260316_032401",
+  "runner": "codex",
+  "stages_requested": [
+    "observe",
+    "reflect",
+    "organize",
+    "enrich",
+    "sense-check"
+  ],
+  "stage_results": {
+    "observe": {
+      "status": "failed",
+      "elapsed_seconds": 11,
+      "error": "parallel_execution_failed"
+    }
+  },
+  "run_dir": "/Users/peteromalley/Documents/hermes-agent/.desloppify/triage_runs/20260316_032401"
+}

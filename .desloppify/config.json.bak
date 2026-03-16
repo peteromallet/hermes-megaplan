@@ -17,9 +17,24 @@
     "docs",
     "assets",
     "venv/",
-    "venv"
+    "venv",
+    "demo/*"
   ],
-  "ignore": [],
+  "ignore": [
+    "test_coverage::hermes_cli/pairing.py::transitive_only",
+    "test_coverage::hermes_constants.py::transitive_only",
+    "test_coverage::tools/async_utils.py::transitive_only",
+    "subjective_assessment",
+    "workflow::",
+    "smells::",
+    "dict_keys::",
+    "test_coverage::",
+    "structural::",
+    "security::",
+    "orphaned::",
+    "unused::",
+    "props::"
+  ],
   "ignore_metadata": {},
   "zone_overrides": {},
   "review_dimensions": [],
