@@ -39,7 +39,7 @@ from gateway.platforms.base import (
 logger = logging.getLogger(__name__)
 
 
-def check_ha_requirements() -> bool:
+def check_homeassistant_requirements() -> bool:
     """Check if Home Assistant dependencies are available and configured."""
     if not AIOHTTP_AVAILABLE:
         return False

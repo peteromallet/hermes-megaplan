@@ -20,9 +20,17 @@ def clarify_callback(cli, question, choices):
     Sets up the interactive selection UI, then blocks until the user
     responds. Returns the user's choice or a timeout message.
     """
-    from cli import CLI_CONFIG
+    # Use cli.config (HermesCLI instance) or fall back to load_config to avoid
+    # direct import of root cli.py (cross-module hygiene).
+    if hasattr(cli, "config") and cli.config is not None:
+        timeout = cli.config.get("clarify", {}).get("timeout", 120)
+    else:
+        try:
+            from hermes_cli.config import load_config
+            timeout = load_config().get("clarify", {}).get("timeout", 120)
+        except Exception:
+            timeout = 120
 
-    timeout = CLI_CONFIG.get("clarify", {}).get("timeout", 120)
     response_queue = queue.Queue()
     is_open_ended = not choices or len(choices) == 0
 

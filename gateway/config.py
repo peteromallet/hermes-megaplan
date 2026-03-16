@@ -31,6 +31,27 @@ class Platform(Enum):
     EMAIL = "email"
 
 
+# Centralized mapping of platforms to their allowlist environment variable names.
+# Used by authorization logic to prevent magic strings and naming drift.
+PLATFORM_ALLOWLIST_VARS: Dict[Platform, str] = {
+    Platform.TELEGRAM: "TELEGRAM_ALLOWED_USERS",
+    Platform.DISCORD: "DISCORD_ALLOWED_USERS",
+    Platform.WHATSAPP: "WHATSAPP_ALLOWED_USERS",
+    Platform.SLACK: "SLACK_ALLOWED_USERS",
+    Platform.SIGNAL: "SIGNAL_ALLOWED_USERS",
+    Platform.EMAIL: "EMAIL_ALLOWED_USERS",
+}
+
+PLATFORM_ALLOW_ALL_VARS: Dict[Platform, str] = {
+    Platform.TELEGRAM: "TELEGRAM_ALLOW_ALL_USERS",
+    Platform.DISCORD: "DISCORD_ALLOW_ALL_USERS",
+    Platform.WHATSAPP: "WHATSAPP_ALLOW_ALL_USERS",
+    Platform.SLACK: "SLACK_ALLOW_ALL_USERS",
+    Platform.SIGNAL: "SIGNAL_ALLOW_ALL_USERS",
+    Platform.EMAIL: "EMAIL_ALLOW_ALL_USERS",
+}
+
+
 @dataclass
 class HomeChannel:
     """

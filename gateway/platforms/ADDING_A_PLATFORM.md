@@ -96,16 +96,16 @@ elif platform == Platform.YOUR_PLATFORM:
 
 ---
 
-## 4. Authorization Maps (`gateway/run.py`)
+## 4. Authorization Maps (`gateway/config.py`)
 
-Add to BOTH dicts in `_is_user_authorized()`:
+Add your platform to BOTH constants:
 
 ```python
-platform_env_map = {
+PLATFORM_ALLOWLIST_VARS = {
     ...
     Platform.YOUR_PLATFORM: "YOUR_PLATFORM_ALLOWED_USERS",
 }
-platform_allow_all_map = {
+PLATFORM_ALLOW_ALL_VARS = {
     ...
     Platform.YOUR_PLATFORM: "YOUR_PLATFORM_ALLOW_ALL_USERS",
 }

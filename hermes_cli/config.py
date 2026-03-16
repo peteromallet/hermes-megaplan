@@ -116,6 +116,15 @@ DEFAULT_CONFIG = {
         "record_sessions": False,  # Auto-record browser sessions as WebM videos
     },
 
+    "code_execution": {
+        "timeout": 300,    # Max seconds a sandbox script can run before being killed (5 min)
+        "max_tool_calls": 50,  # Max RPC tool calls per execution
+    },
+
+    "clarify": {
+        "timeout": 120,  # Seconds to wait for a clarify answer before auto-proceeding
+    },
+
     # Filesystem checkpoints — automatic snapshots before destructive file ops.
     # When enabled, the agent takes a snapshot of the working directory once per
     # conversation turn (on first write_file/patch call).  Use /rollback to restore.

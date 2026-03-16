@@ -651,10 +651,13 @@ def _kill_process_group(proc, escalate: bool = False):
 
 
 def _load_config() -> dict:
-    """Load code_execution config from CLI_CONFIG if available."""
+    """Load code_execution config from hermes_cli config (avoids cross-module import
+    from the CLI layer).
+    """
     try:
-        from cli import CLI_CONFIG
-        return CLI_CONFIG.get("code_execution", {})
+        from hermes_cli.config import load_config
+        cfg = load_config()
+        return cfg.get("code_execution", {})
     except Exception:
         return {}
 

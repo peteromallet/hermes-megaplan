@@ -26,7 +26,7 @@ except ImportError:
     Intents = Any
     commands = None
 
-from gateway.config import Platform, PlatformConfig
+from gateway.config import Platform, PlatformConfig, PLATFORM_ALLOWLIST_VARS
 from gateway.platforms.base import (
     BasePlatformAdapter,
     MessageEvent,
@@ -90,7 +90,7 @@ class DiscordAdapter(BasePlatformAdapter):
             )
             
             # Parse allowed user entries (may contain usernames or IDs)
-            allowed_env = os.getenv("DISCORD_ALLOWED_USERS", "")
+            allowed_env = os.getenv(PLATFORM_ALLOWLIST_VARS.get(Platform.DISCORD, "DISCORD_ALLOWED_USERS"), "")
             if allowed_env:
                 self._allowed_user_ids = {
                     uid.strip() for uid in allowed_env.split(",") if uid.strip()
@@ -489,9 +489,10 @@ class DiscordAdapter(BasePlatformAdapter):
 
         # Update internal set and env var so gateway auth checks use IDs
         self._allowed_user_ids = numeric_ids
-        os.environ["DISCORD_ALLOWED_USERS"] = ",".join(sorted(numeric_ids))
+        env_var = PLATFORM_ALLOWLIST_VARS.get(Platform.DISCORD, "DISCORD_ALLOWED_USERS")
+        os.environ[env_var] = ",".join(sorted(numeric_ids))
         if resolved_count:
-            print(f"[{self.name}] Updated DISCORD_ALLOWED_USERS with {resolved_count} resolved ID(s)")
+            print(f"[{self.name}] Updated {env_var} with {resolved_count} resolved ID(s)")
 
     def format_message(self, content: str) -> str:
         """

@@ -696,19 +696,13 @@ class TestExecuteCodeEdgeCases(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestLoadConfig(unittest.TestCase):
-    def test_returns_empty_dict_when_cli_config_unavailable(self):
+    def test_loads_code_execution_config(self):
         from tools.code_execution_tool import _load_config
-        with patch.dict("sys.modules", {"cli": None}):
-            result = _load_config()
-            self.assertIsInstance(result, dict)
-
-    def test_returns_code_execution_section(self):
-        from tools.code_execution_tool import _load_config
-        mock_cli = MagicMock()
-        mock_cli.CLI_CONFIG = {"code_execution": {"timeout": 120, "max_tool_calls": 10}}
-        with patch.dict("sys.modules", {"cli": mock_cli}):
-            result = _load_config()
+        result = _load_config()
         self.assertIsInstance(result, dict)
+        # Should contain defaults from hermes_cli/config.py
+        self.assertIn("timeout", result)
+        self.assertGreater(result.get("timeout"), 0)
 
 
 # ---------------------------------------------------------------------------

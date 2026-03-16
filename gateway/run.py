@@ -144,6 +144,8 @@ from gateway.config import (
     Platform,
     GatewayConfig,
     load_gateway_config,
+    PLATFORM_ALLOWLIST_VARS,
+    PLATFORM_ALLOW_ALL_VARS,
 )
 from gateway.session import (
     SessionStore,
@@ -622,9 +624,7 @@ class GatewayRunner:
         # Warn if no user allowlists are configured and open access is not opted in
         _any_allowlist = any(
             os.getenv(v)
-            for v in ("TELEGRAM_ALLOWED_USERS", "DISCORD_ALLOWED_USERS",
-                       "WHATSAPP_ALLOWED_USERS", "SLACK_ALLOWED_USERS",
-                       "GATEWAY_ALLOWED_USERS")
+            for v in list(PLATFORM_ALLOWLIST_VARS.values()) + ["GATEWAY_ALLOWED_USERS"]
         )
         _allow_all = os.getenv("GATEWAY_ALLOW_ALL_USERS", "").lower() in ("true", "1", "yes")
         if not _any_allowlist and not _allow_all:
@@ -818,8 +818,8 @@ class GatewayRunner:
             return SignalAdapter(config)
 
         elif platform == Platform.HOMEASSISTANT:
-            from gateway.platforms.homeassistant import HomeAssistantAdapter, check_ha_requirements
-            if not check_ha_requirements():
+            from gateway.platforms.homeassistant import HomeAssistantAdapter, check_homeassistant_requirements
+            if not check_homeassistant_requirements():
                 logger.warning("HomeAssistant: aiohttp not installed or HASS_TOKEN not set")
                 return None
             return HomeAssistantAdapter(config)
@@ -854,25 +854,8 @@ class GatewayRunner:
         if not user_id:
             return False
 
-        platform_env_map = {
-            Platform.TELEGRAM: "TELEGRAM_ALLOWED_USERS",
-            Platform.DISCORD: "DISCORD_ALLOWED_USERS",
-            Platform.WHATSAPP: "WHATSAPP_ALLOWED_USERS",
-            Platform.SLACK: "SLACK_ALLOWED_USERS",
-            Platform.SIGNAL: "SIGNAL_ALLOWED_USERS",
-            Platform.EMAIL: "EMAIL_ALLOWED_USERS",
-        }
-        platform_allow_all_map = {
-            Platform.TELEGRAM: "TELEGRAM_ALLOW_ALL_USERS",
-            Platform.DISCORD: "DISCORD_ALLOW_ALL_USERS",
-            Platform.WHATSAPP: "WHATSAPP_ALLOW_ALL_USERS",
-            Platform.SLACK: "SLACK_ALLOW_ALL_USERS",
-            Platform.SIGNAL: "SIGNAL_ALLOW_ALL_USERS",
-            Platform.EMAIL: "EMAIL_ALLOW_ALL_USERS",
-        }
-
         # Per-platform allow-all flag (e.g., DISCORD_ALLOW_ALL_USERS=true)
-        platform_allow_all_var = platform_allow_all_map.get(source.platform, "")
+        platform_allow_all_var = PLATFORM_ALLOW_ALL_VARS.get(source.platform, "")
         if platform_allow_all_var and os.getenv(platform_allow_all_var, "").lower() in ("true", "1", "yes"):
             return True
 
@@ -882,7 +865,7 @@ class GatewayRunner:
             return True
 
         # Check platform-specific and global allowlists
-        platform_allowlist = os.getenv(platform_env_map.get(source.platform, ""), "").strip()
+        platform_allowlist = os.getenv(PLATFORM_ALLOWLIST_VARS.get(source.platform, ""), "").strip()
         global_allowlist = os.getenv("GATEWAY_ALLOWED_USERS", "").strip()
 
         if not platform_allowlist and not global_allowlist:
