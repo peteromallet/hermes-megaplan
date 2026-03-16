@@ -741,13 +741,16 @@ class BasePlatformAdapter(ABC):
         except asyncio.CancelledError:
             pass  # Normal cancellation when handler completes
     
-    async def handle_message(self, event: MessageEvent) -> None:
+    async def handle_message(self, event: MessageEvent, *, interrupt: bool = True) -> None:
         """
         Process an incoming message.
-        
+
         This method returns quickly by spawning background tasks.
         This allows new messages to be processed even while an agent is running,
         enabling interruption support.
+
+        If interrupt=False, the message is queued for after the current run
+        finishes without signalling the agent to stop (queue mode).
         """
         if not self._message_handler:
             return
@@ -777,12 +780,14 @@ class BasePlatformAdapter(ABC):
                     self._pending_messages[session_key] = event
                 return  # Don't interrupt now - will run after current task completes
 
-            # Default behavior for non-photo follow-ups: interrupt the running agent
-            print(f"[{self.name}] ⚡ New message while session {session_key} is active - triggering interrupt")
+            # Store pending message for after current run finishes
             self._pending_messages[session_key] = event
-            # Signal the interrupt (the processing task checks this)
-            self._active_sessions[session_key].set()
-            return  # Don't process now - will be handled after current task finishes
+            if interrupt:
+                print(f"[{self.name}] ⚡ New message while session {session_key} is active - triggering interrupt")
+                self._active_sessions[session_key].set()
+            else:
+                print(f"[{self.name}] 📬 Message queued for session {session_key} (no interrupt)")
+            return
         
         # Spawn background task to process this message
         task = asyncio.create_task(self._process_message_background(event, session_key))

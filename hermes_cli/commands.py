@@ -27,6 +27,7 @@ COMMANDS_BY_CATEGORY = {
         "/compress": "Manually compress conversation context (flush memories + summarize)",
         "/rollback": "List or restore filesystem checkpoints (usage: /rollback [number])",
         "/background": "Run a prompt in the background (usage: /background <prompt>)",
+        "/autoreply": "Auto-reply loop (/autoreply <prompt> [--forever] [--max N] [--literal], /autoreply off)",
     },
     "Configuration": {
         "/config": "Show current configuration",
