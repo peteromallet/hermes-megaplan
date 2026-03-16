@@ -31,9 +31,10 @@ def _get_file_ops(task_id: str = "default") -> ShellFileOperations:
     Thread-safe: uses the same per-task creation locks as terminal_tool to
     prevent duplicate sandbox creation from concurrent tool calls.
     """
+    from tools import terminal_tool as terminal_tool_mod
     from tools.terminal_tool import (
-        _active_environments, _env_lock, _create_environment,
-        _get_env_config, _last_activity, _start_cleanup_thread,
+        _create_environment,
+        _get_env_config, _start_cleanup_thread,
         _creation_locks, _creation_locks_lock,
     )
     import time
@@ -43,9 +44,9 @@ def _get_file_ops(task_id: str = "default") -> ShellFileOperations:
     with _file_ops_lock:
         cached = _file_ops_cache.get(task_id)
     if cached is not None:
-        with _env_lock:
-            if task_id in _active_environments:
-                _last_activity[task_id] = time.time()
+        with terminal_tool_mod._env_lock:
+            if task_id in terminal_tool_mod._active_environments:
+                terminal_tool_mod._last_activity[task_id] = time.time()
                 return cached
             else:
                 # Environment was cleaned up -- invalidate stale cache entry
@@ -61,10 +62,10 @@ def _get_file_ops(task_id: str = "default") -> ShellFileOperations:
 
     with task_lock:
         # Double-check: another thread may have created it while we waited
-        with _env_lock:
-            if task_id in _active_environments:
-                _last_activity[task_id] = time.time()
-                terminal_env = _active_environments[task_id]
+        with terminal_tool_mod._env_lock:
+            if task_id in terminal_tool_mod._active_environments:
+                terminal_tool_mod._last_activity[task_id] = time.time()
+                terminal_env = terminal_tool_mod._active_environments[task_id]
             else:
                 terminal_env = None
 
@@ -107,9 +108,9 @@ def _get_file_ops(task_id: str = "default") -> ShellFileOperations:
                 task_id=task_id,
             )
 
-            with _env_lock:
-                _active_environments[task_id] = terminal_env
-                _last_activity[task_id] = time.time()
+            with terminal_tool_mod._env_lock:
+                terminal_tool_mod._active_environments[task_id] = terminal_env
+                terminal_tool_mod._last_activity[task_id] = time.time()
 
             _start_cleanup_thread()
             logger.info("%s environment ready for task %s", env_type, task_id[:8])
