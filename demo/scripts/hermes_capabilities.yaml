@@ -44,7 +44,7 @@ scenes:
   - action: camera
     zoom: 2.4
     x: 0.2
-    y: 0.55
+    y: 1.0
     duration: 0.8
     ease: "ease-in-out"
 
@@ -55,14 +55,14 @@ scenes:
     camera:
       zoom: 2.4
       x: 0.2
-      y: 0.6
+      y: 1.0
       at: "user_start"
       duration: 0.4
       ease: "ease-in-out"
     camera_response:
       zoom: 2.4
       x: 0.2
-      y: 0.65
+      y: 1.0
       at: "response_start"
       duration: 0.3
       ease: "ease-in-out"
@@ -77,14 +77,14 @@ scenes:
     camera:
       zoom: 2.4
       x: 0.2
-      y: 0.7
+      y: 1.0
       at: "user_start"
       duration: 0.4
       ease: "ease-in-out"
     camera_response:
       zoom: 2.4
       x: 0.2
-      y: 0.75
+      y: 1.0
       at: "response_start"
       duration: 0.3
       ease: "ease-in-out"
@@ -99,14 +99,14 @@ scenes:
     camera:
       zoom: 2.4
       x: 0.2
-      y: 0.8
+      y: 1.0
       at: "user_start"
       duration: 0.4
       ease: "ease-in-out"
     camera_response:
       zoom: 2.4
       x: 0.2
-      y: 0.85
+      y: 1.0
       at: "response_start"
       duration: 0.3
       ease: "ease-in-out"
@@ -121,24 +121,20 @@ scenes:
     camera:
       zoom: 2.4
       x: 0.2
-      y: 0.9
+      y: 1.0
       at: "user_start"
       duration: 0.4
       ease: "ease-in-out"
     camera_response:
-      zoom: 2.4
-      x: 0.2
-      y: 0.95
+      zoom: 2.8
+      x: 0.15
+      y: 1.0
       at: "response_start"
-      duration: 0.3
+      duration: 0.8
       ease: "ease-in-out"
     response: |
       It could allow for advanced agent automation!
     post_pause: 0.5
-
-  # ── Add breathing room below the conversation ─────────
-  - action: print
-    text: "\n\n\n"
 
   # ── Exchange 5: The reveal — zoom in extra ─────────────
   - user: "Can Hermes Agent do this?"
@@ -147,14 +143,14 @@ scenes:
     camera:
       zoom: 3.0
       x: 0.05
-      y: 0.95
+      y: 1.0
       at: "user_start"
       duration: 0.5
       ease: "ease-in-out"
     camera_response:
-      zoom: 4.0
+      zoom: 5.5
       x: 0.05
-      y: 0.95
+      y: 1.0
       at: "response_start"
       duration: 0.5
       ease: "ease-in-out"

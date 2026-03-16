@@ -180,11 +180,21 @@ def _apply_camera(
     output_w: int,
     output_h: int,
 ) -> Image.Image:
-    """Crop and scale a single frame based on camera state."""
-    input_w, input_h = frame.size
+    """Crop and scale a single frame based on camera state.
 
-    crop_w = input_w / zoom
+    The crop region matches the output aspect ratio so resizing never stretches.
+    """
+    input_w, input_h = frame.size
+    output_ar = output_w / output_h
+
+    # Start with full-zoom crop, then adjust to match output aspect ratio
     crop_h = input_h / zoom
+    crop_w = crop_h * output_ar
+
+    # If crop_w exceeds input width, constrain by width instead
+    if crop_w > input_w / zoom:
+        crop_w = input_w / zoom
+        crop_h = crop_w / output_ar
 
     # Center the crop on (cx, cy) in normalized coordinates
     crop_x = cx * input_w - crop_w / 2

@@ -56,7 +56,7 @@ def run_pipeline(
 
     # Calculate terminal size for recording
     cols = 200
-    rows = 50
+    rows = 65
 
     if dry_run:
         _print_dry_run(
@@ -140,7 +140,7 @@ def _print_dry_run(
     print("=== DRY RUN ===\n")
 
     print("Step 1: Record with asciinema")
-    print("  asciinema rec --overwrite --cols=200 --rows=50 \\")
+    print(f"  asciinema rec --overwrite --cols={200} --rows={65} \\")
     print(f"    --command '{' '.join(player_cmd)}' \\")
     print(f"    {cast_path}\n")
 
