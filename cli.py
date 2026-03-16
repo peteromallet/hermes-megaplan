@@ -59,7 +59,6 @@ _COMMAND_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧
 
 
 # Load .env from ~/.hermes/.env first, then project root as dev fallback
-from dotenv import load_dotenv
 from hermes_constants import OPENROUTER_BASE_URL, load_hermes_env
 
 load_hermes_env()

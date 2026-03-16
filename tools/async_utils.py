@@ -7,7 +7,7 @@ fallback logic.
 import asyncio
 import concurrent.futures
 import logging
-from typing import Any, Awaitable, TypeVar, cast
+from typing import Awaitable, TypeVar, cast
 
 logger = logging.getLogger(__name__)
 

@@ -21,7 +21,7 @@ import os
 import sys
 import threading
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from tools.code_execution_tool import (
     SANDBOX_ALLOWED_TOOLS,

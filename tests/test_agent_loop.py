@@ -21,7 +21,6 @@ try:
     from environments.agent_loop import (
         AgentResult,
         HermesAgentLoop,
-        ToolError,
         _extract_reasoning_from_message,
         resize_tool_pool,
     )
