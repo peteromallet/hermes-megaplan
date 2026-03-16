@@ -2574,6 +2574,8 @@ class GatewayRunner:
             call_kwargs["model"] = config["model"]
 
         response = await async_call_llm(**call_kwargs)
+        if not response.choices:
+            return None, False
         content = response.choices[0].message.content
         if not content:
             return None, False

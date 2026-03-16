@@ -3263,6 +3263,8 @@ class HermesCLI:
 
         try:
             response = call_llm(**call_kwargs)
+            if not response.choices:
+                return None
             content = response.choices[0].message.content
             if not content:
                 return None
