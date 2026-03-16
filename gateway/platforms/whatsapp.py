@@ -62,9 +62,6 @@ def _kill_port_process(port: int) -> None:
     except Exception:
         pass
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import (
     BasePlatformAdapter,
