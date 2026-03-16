@@ -12,6 +12,7 @@ import logging
 import os
 import json
 import uuid
+import sqlite3
 from pathlib import Path
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -330,15 +331,14 @@ class SessionStore:
     """
     
     def __init__(self, sessions_dir: Path, config: GatewayConfig,
-                 has_active_processes_fn=None,
-                 on_auto_reset=None):
+                 has_active_processes_fn=None):
         self.sessions_dir = sessions_dir
         self.config = config
         self._entries: Dict[str, SessionEntry] = {}
         self._loaded = False
         self._has_active_processes_fn = has_active_processes_fn
-        # on_auto_reset is deprecated — memory flush now runs proactively
-        # via the background session expiry watcher in GatewayRunner.
+        # Pre-flushed sessions for the background session expiry watcher
+        # (memory flush now runs proactively in GatewayRunner).
         self._pre_flushed_sessions: set = set()  # session_ids already flushed by watcher
         
         # Initialize SQLite session database
@@ -347,7 +347,7 @@ class SessionStore:
             from hermes_state import SessionDB
             self._db = SessionDB()
         except Exception as e:
-            print(f"[gateway] Warning: SQLite session store unavailable, falling back to JSONL: {e}")
+            logger.warning("[gateway] SQLite session store unavailable, falling back to JSONL: %s", e)
     
     def _ensure_loaded(self) -> None:
         """Load sessions index from disk if not already loaded."""
@@ -364,7 +364,7 @@ class SessionStore:
                     for key, entry_data in data.items():
                         self._entries[key] = SessionEntry.from_dict(entry_data)
             except Exception as e:
-                print(f"[gateway] Warning: Failed to load sessions: {e}")
+                logger.warning("[gateway] Failed to load sessions: %s", e)
         
         self._loaded = True
     
@@ -488,7 +488,7 @@ class SessionStore:
         if self._db:
             try:
                 return self._db.session_count() > 1
-            except Exception:
+            except sqlite3.Error:
                 pass  # fall through to heuristic
         # Fallback: check if sessions.json was loaded with existing data.
         # This covers the rare case where the DB is unavailable.
@@ -510,6 +510,7 @@ class SessionStore:
         
         session_key = self._generate_session_key(source)
         now = datetime.now()
+        was_auto_reset = False
         
         if session_key in self._entries and not force_new:
             entry = self._entries[session_key]
@@ -527,8 +528,8 @@ class SessionStore:
                 if self._db:
                     try:
                         self._db.end_session(entry.session_id, "session_reset")
-                    except Exception as e:
-                        logger.debug("Session DB operation failed: %s", e)
+                    except sqlite3.Error as e:
+                        logger.warning("Session DB operation failed: %s", e)
         else:
             was_auto_reset = False
         
@@ -558,8 +559,8 @@ class SessionStore:
                     source=source.platform.value,
                     user_id=source.user_id,
                 )
-            except Exception as e:
-                print(f"[gateway] Warning: Failed to create SQLite session: {e}")
+            except sqlite3.Error as e:
+                logger.warning("[gateway] Failed to create SQLite session: %s", e)
         
         return entry
     
@@ -588,8 +589,8 @@ class SessionStore:
                     self._db.update_token_counts(
                         entry.session_id, input_tokens, output_tokens
                     )
-                except Exception as e:
-                    logger.debug("Session DB operation failed: %s", e)
+                except sqlite3.Error as e:
+                    logger.warning("Session DB operation failed: %s", e)
     
     def reset_session(self, session_key: str) -> Optional[SessionEntry]:
         """Force reset a session, creating a new session ID."""
@@ -604,8 +605,8 @@ class SessionStore:
         if self._db:
             try:
                 self._db.end_session(old_entry.session_id, "session_reset")
-            except Exception as e:
-                logger.debug("Session DB operation failed: %s", e)
+            except sqlite3.Error as e:
+                logger.warning("Session DB operation failed: %s", e)
         
         now = datetime.now()
         session_id = f"{now.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
@@ -632,8 +633,8 @@ class SessionStore:
                     source=old_entry.platform.value if old_entry.platform else "unknown",
                     user_id=old_entry.origin.user_id if old_entry.origin else None,
                 )
-            except Exception as e:
-                logger.debug("Session DB operation failed: %s", e)
+            except sqlite3.Error as e:
+                logger.warning("Session DB operation failed: %s", e)
         
         return new_entry
 
@@ -660,8 +661,8 @@ class SessionStore:
         if self._db:
             try:
                 self._db.end_session(old_entry.session_id, "session_switch")
-            except Exception as e:
-                logger.debug("Session DB end_session failed: %s", e)
+            except sqlite3.Error as e:
+                logger.warning("Session DB end_session failed: %s", e)
 
         now = datetime.now()
         new_entry = SessionEntry(
@@ -717,8 +718,8 @@ class SessionStore:
                     tool_calls=message.get("tool_calls"),
                     tool_call_id=message.get("tool_call_id"),
                 )
-            except Exception as e:
-                logger.debug("Session DB operation failed: %s", e)
+            except sqlite3.Error as e:
+                logger.warning("Session DB operation failed: %s", e)
         
         # Also write legacy JSONL (keeps existing tooling working during transition)
         transcript_path = self.get_transcript_path(session_id)
@@ -744,8 +745,8 @@ class SessionStore:
                         tool_calls=msg.get("tool_calls"),
                         tool_call_id=msg.get("tool_call_id"),
                     )
-            except Exception as e:
-                logger.debug("Failed to rewrite transcript in DB: %s", e)
+            except sqlite3.Error as e:
+                logger.warning("Failed to rewrite transcript in DB: %s", e)
         
         # JSONL: overwrite the file
         transcript_path = self.get_transcript_path(session_id)
@@ -761,8 +762,8 @@ class SessionStore:
                 messages = self._db.get_messages_as_conversation(session_id)
                 if messages:
                     return messages
-            except Exception as e:
-                logger.debug("Could not load messages from DB: %s", e)
+            except sqlite3.Error as e:
+                logger.warning("Could not load messages from DB: %s", e)
         
         # Fall back to legacy JSONL
         transcript_path = self.get_transcript_path(session_id)
