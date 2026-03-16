@@ -45,28 +45,12 @@ from pathlib import Path
 # Type aliases for discriminators
 ApiMode = Literal["chat_completions", "codex_responses", "anthropic_messages"]
 
-# Load .env from ~/.hermes/.env first, then project root as dev fallback
-from dotenv import load_dotenv
-
-_hermes_home = Path(os.getenv("HERMES_HOME", Path.home() / ".hermes"))
-_user_env = _hermes_home / ".env"
-_project_env = Path(__file__).parent / '.env'
-if _user_env.exists():
-    try:
-        load_dotenv(dotenv_path=_user_env, encoding="utf-8")
-    except UnicodeDecodeError:
-        load_dotenv(dotenv_path=_user_env, encoding="latin-1")
-    logger.info("Loaded environment variables from %s", _user_env)
-elif _project_env.exists():
-    try:
-        load_dotenv(dotenv_path=_project_env, encoding="utf-8")
-    except UnicodeDecodeError:
-        load_dotenv(dotenv_path=_project_env, encoding="latin-1")
-    logger.info("Loaded environment variables from %s", _project_env)
-else:
-    logger.info("No .env file found. Using system environment variables.")
+# Load .env using shared helper (respects HERMES_HOME)
+from hermes_constants import load_hermes_env
+load_hermes_env()
 
 # Point mini-swe-agent at ~/.hermes/ so it shares our config
+_hermes_home = Path(os.getenv("HERMES_HOME", Path.home() / ".hermes"))
 os.environ.setdefault("MSWEA_GLOBAL_CONFIG_DIR", str(_hermes_home))
 os.environ.setdefault("MSWEA_SILENT_STARTUP", "1")
 

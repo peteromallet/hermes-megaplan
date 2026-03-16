@@ -27,25 +27,9 @@ from pathlib import Path
 import fire
 import yaml
 
-# Load .env from ~/.hermes/.env first, then project root as dev fallback
-from dotenv import load_dotenv
-
-_hermes_home = Path(os.getenv("HERMES_HOME", Path.home() / ".hermes"))
-_user_env = _hermes_home / ".env"
-_project_env = Path(__file__).parent / '.env'
-
-if _user_env.exists():
-    try:
-        load_dotenv(dotenv_path=_user_env, encoding="utf-8")
-    except UnicodeDecodeError:
-        load_dotenv(dotenv_path=_user_env, encoding="latin-1")
-    print(f"✅ Loaded environment variables from {_user_env}")
-elif _project_env.exists():
-    try:
-        load_dotenv(dotenv_path=_project_env, encoding="utf-8")
-    except UnicodeDecodeError:
-        load_dotenv(dotenv_path=_project_env, encoding="latin-1")
-    print(f"✅ Loaded environment variables from {_project_env}")
+# Load .env using shared helper
+from hermes_constants import load_hermes_env
+load_hermes_env()
 
 # Set terminal working directory to tinker-atropos submodule
 # This ensures terminal commands run in the right context for RL work

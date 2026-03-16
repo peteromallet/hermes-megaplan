@@ -662,10 +662,10 @@ class BasePlatformAdapter(ABC):
             # Store this as a pending message — picked up when current run finishes
             self._pending_messages[session_key] = event
             if interrupt:
-                print(f"[{self.name}] ⚡ New message while session {session_key} is active - triggering interrupt")
+                logger.info("[%s] ⚡ New message while session %s is active - triggering interrupt", self.name, session_key)
                 self._active_sessions[session_key].set()
             else:
-                print(f"[{self.name}] 📬 Message queued for session {session_key} (no interrupt)")
+                logger.info("[%s] 📬 Message queued for session %s (no interrupt)", self.name, session_key)
             return
 
         # Spawn background task to process this message
@@ -730,7 +730,7 @@ class BasePlatformAdapter(ABC):
                     
                     # Log send failures (don't raise - user already saw tool progress)
                     if not result.success:
-                        print(f"[{self.name}] Failed to send response: {result.error}")
+                        logger.warning("[%s] Failed to send response: %s", self.name, result.error)
                         # Try sending without markdown as fallback
                         fallback_result = await self.send(
                             chat_id=event.source.chat_id,
@@ -739,7 +739,7 @@ class BasePlatformAdapter(ABC):
                             metadata=_thread_metadata,
                         )
                         if not fallback_result.success:
-                            print(f"[{self.name}] Fallback send also failed: {fallback_result.error}")
+                            logger.warning("[%s] Fallback send also failed: %s", self.name, fallback_result.error)
                 
                 # Human-like pacing delay between text and media
                 human_delay = self._get_human_delay()
@@ -808,14 +808,14 @@ class BasePlatformAdapter(ABC):
                             )
 
                         if not media_result.success:
-                            print(f"[{self.name}] Failed to send media ({ext}): {media_result.error}")
+                            logger.warning("[%s] Failed to send media (%s): %s", self.name, ext, media_result.error)
                     except Exception as media_err:
-                        print(f"[{self.name}] Error sending media: {media_err}")
+                        logger.warning("[%s] Error sending media: %s", self.name, media_err)
             
             # Check if there's a pending message that was queued during our processing
             if session_key in self._pending_messages:
                 pending_event = self._pending_messages.pop(session_key)
-                print(f"[{self.name}] 📨 Processing queued message from interrupt")
+                logger.info("[%s] 📨 Processing queued message from interrupt", self.name)
                 # Clean up current session before processing pending
                 if session_key in self._active_sessions:
                     del self._active_sessions[session_key]
@@ -829,9 +829,7 @@ class BasePlatformAdapter(ABC):
                 return  # Already cleaned up
                 
         except Exception as e:
-            print(f"[{self.name}] Error handling message: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("[%s] Error handling message: %s", self.name, e, exc_info=True)
         finally:
             # Stop typing indicator
             typing_task.cancel()

@@ -35,10 +35,10 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 import fire
-from dotenv import load_dotenv
+from hermes_constants import load_hermes_env
 
 # Load environment variables
-load_dotenv()
+load_hermes_env()
 
 # Add mini-swe-agent to path if not installed
 mini_swe_path = Path(__file__).parent / "mini-swe-agent" / "src"
