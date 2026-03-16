@@ -40,10 +40,32 @@ scenes:
   - action: pause
     duration: 1.0
 
+  # ── Zoom in on the text area after banner ──────────────
+  - action: camera
+    zoom: 2.4
+    x: 0.2
+    y: 0.55
+    duration: 0.8
+    ease: "ease-in-out"
+
   # ── Exchange 1: Context management ─────────────────────
   - user: "Wouldn't it be cool if agents could manage their own context?"
     thinking_time: 0.2
     typing_speed: 0.02
+    camera:
+      zoom: 2.4
+      x: 0.2
+      y: 0.6
+      at: "user_start"
+      duration: 0.4
+      ease: "ease-in-out"
+    camera_response:
+      zoom: 2.4
+      x: 0.2
+      y: 0.65
+      at: "response_start"
+      duration: 0.3
+      ease: "ease-in-out"
     response: |
       Yeah! How else can you do advanced automation?
     post_pause: 0.4
@@ -52,6 +74,20 @@ scenes:
   - user: "Why can't they prompt themselves upon completion?"
     thinking_time: 0.2
     typing_speed: 0.02
+    camera:
+      zoom: 2.4
+      x: 0.2
+      y: 0.7
+      at: "user_start"
+      duration: 0.4
+      ease: "ease-in-out"
+    camera_response:
+      zoom: 2.4
+      x: 0.2
+      y: 0.75
+      at: "response_start"
+      duration: 0.3
+      ease: "ease-in-out"
     response: |
       We could generate a prompt to push them forward based on their context...
     post_pause: 0.4
@@ -60,6 +96,20 @@ scenes:
   - user: "And what if they can switch models?"
     thinking_time: 0.2
     typing_speed: 0.02
+    camera:
+      zoom: 2.4
+      x: 0.2
+      y: 0.8
+      at: "user_start"
+      duration: 0.4
+      ease: "ease-in-out"
+    camera_response:
+      zoom: 2.4
+      x: 0.2
+      y: 0.85
+      at: "response_start"
+      duration: 0.3
+      ease: "ease-in-out"
     response: |
       Then it could use the right model for each task?
     post_pause: 0.4
@@ -68,27 +118,45 @@ scenes:
   - user: "And a harness could use all these capabilities?"
     thinking_time: 0.2
     typing_speed: 0.02
+    camera:
+      zoom: 2.4
+      x: 0.2
+      y: 0.9
+      at: "user_start"
+      duration: 0.4
+      ease: "ease-in-out"
+    camera_response:
+      zoom: 2.4
+      x: 0.2
+      y: 0.95
+      at: "response_start"
+      duration: 0.3
+      ease: "ease-in-out"
     response: |
       It could allow for advanced agent automation!
     post_pause: 0.5
 
-  # ── Exchange 5: The reveal — zoomed in ─────────────────
+  # ── Add breathing room below the conversation ─────────
+  - action: print
+    text: "\n\n\n"
+
+  # ── Exchange 5: The reveal — zoom in extra ─────────────
   - user: "Can Hermes Agent do this?"
     thinking_time: 4.0
     typing_speed: 0.02
     camera:
-      zoom: 1.0
-      x: 0.15
-      y: 0.9
+      zoom: 3.0
+      x: 0.05
+      y: 0.95
       at: "user_start"
-      duration: 0.01
-      ease: "linear"
+      duration: 0.5
+      ease: "ease-in-out"
     camera_response:
-      zoom: 2.8
-      x: 0.15
-      y: 0.9
+      zoom: 4.0
+      x: 0.05
+      y: 0.95
       at: "response_start"
-      duration: 0.4
+      duration: 0.5
       ease: "ease-in-out"
     response: "It can now."
     post_pause: 3.0

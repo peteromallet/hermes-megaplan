@@ -118,7 +118,7 @@ class HermesControl:
 
     def compact_context(self, **kw) -> dict:
         """Trigger context compaction."""
-        return self.send_message("/compact", **kw)
+        return self.send_message("/compress", **kw)
 
     def reset(self, **kw) -> dict:
         """Reset conversation history."""

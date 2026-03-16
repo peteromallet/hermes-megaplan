@@ -2876,7 +2876,7 @@ class HermesCLI:
             self._toggle_verbose()
         elif cmd_lower.startswith("/reasoning"):
             self._handle_reasoning_command(cmd_original)
-        elif cmd_lower == "/compress":
+        elif cmd_lower in ("/compress", "/compact"):
             self._manual_compress()
         elif cmd_lower == "/usage":
             self._show_usage()
