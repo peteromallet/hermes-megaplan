@@ -42,8 +42,8 @@ GATEWAY_SECRET_CAPTURE_UNSUPPORTED_MESSAGE = (
 IMAGE_CACHE_DIR = Path(os.path.expanduser("~/.hermes/image_cache"))
 
 
-def get_image_cache_dir() -> Path:
-    """Return the image cache directory, creating it if it doesn't exist."""
+def ensure_image_cache_dir() -> Path:
+    """Ensure the image cache directory exists and return it (creates if needed)."""
     IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     return IMAGE_CACHE_DIR
 
@@ -59,7 +59,7 @@ def cache_image_from_bytes(data: bytes, ext: str = ".jpg") -> str:
     Returns:
         Absolute path to the cached image file as a string.
     """
-    cache_dir = get_image_cache_dir()
+    cache_dir = ensure_image_cache_dir()
     filename = f"img_{uuid.uuid4().hex[:12]}{ext}"
     filepath = cache_dir / filename
     filepath.write_bytes(data)
@@ -101,7 +101,7 @@ def cleanup_image_cache(max_age_hours: int = 24) -> int:
     """
     import time
 
-    cache_dir = get_image_cache_dir()
+    cache_dir = ensure_image_cache_dir()
     cutoff = time.time() - (max_age_hours * 3600)
     removed = 0
     for f in cache_dir.iterdir():
@@ -124,8 +124,8 @@ def cleanup_image_cache(max_age_hours: int = 24) -> int:
 AUDIO_CACHE_DIR = Path(os.path.expanduser("~/.hermes/audio_cache"))
 
 
-def get_audio_cache_dir() -> Path:
-    """Return the audio cache directory, creating it if it doesn't exist."""
+def ensure_audio_cache_dir() -> Path:
+    """Ensure the audio cache directory exists and return it (creates if needed)."""
     AUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     return AUDIO_CACHE_DIR
 
@@ -141,7 +141,7 @@ def cache_audio_from_bytes(data: bytes, ext: str = ".ogg") -> str:
     Returns:
         Absolute path to the cached audio file as a string.
     """
-    cache_dir = get_audio_cache_dir()
+    cache_dir = ensure_audio_cache_dir()
     filename = f"audio_{uuid.uuid4().hex[:12]}{ext}"
     filepath = cache_dir / filename
     filepath.write_bytes(data)
@@ -192,8 +192,8 @@ SUPPORTED_DOCUMENT_TYPES = {
 }
 
 
-def get_document_cache_dir() -> Path:
-    """Return the document cache directory, creating it if it doesn't exist."""
+def ensure_document_cache_dir() -> Path:
+    """Ensure the document cache directory exists and return it (creates if needed)."""
     DOCUMENT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     return DOCUMENT_CACHE_DIR
 
@@ -215,7 +215,7 @@ def cache_document_from_bytes(data: bytes, filename: str) -> str:
     Raises:
         ValueError: If the sanitized path escapes the cache directory.
     """
-    cache_dir = get_document_cache_dir()
+    cache_dir = ensure_document_cache_dir()
     # Sanitize: strip directory components, null bytes, and control characters
     safe_name = Path(filename).name if filename else "document"
     safe_name = safe_name.replace("\x00", "").strip()
@@ -238,7 +238,7 @@ def cleanup_document_cache(max_age_hours: int = 24) -> int:
     """
     import time
 
-    cache_dir = get_document_cache_dir()
+    cache_dir = ensure_document_cache_dir()
     cutoff = time.time() - (max_age_hours * 3600)
     removed = 0
     for f in cache_dir.iterdir():

@@ -1,7 +1,7 @@
 """
 Tests for document cache utilities in gateway/platforms/base.py.
 
-Covers: get_document_cache_dir, cache_document_from_bytes,
+Covers: ensure_document_cache_dir, cache_document_from_bytes,
         cleanup_document_cache, SUPPORTED_DOCUMENT_TYPES.
 """
 
@@ -15,7 +15,7 @@ from gateway.platforms.base import (
     SUPPORTED_DOCUMENT_TYPES,
     cache_document_from_bytes,
     cleanup_document_cache,
-    get_document_cache_dir,
+    ensure_document_cache_dir,
 )
 
 # ---------------------------------------------------------------------------
@@ -31,18 +31,18 @@ def _redirect_cache(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# TestGetDocumentCacheDir
+# TestEnsureDocumentCacheDir
 # ---------------------------------------------------------------------------
 
-class TestGetDocumentCacheDir:
+class TestEnsureDocumentCacheDir:
     def test_creates_directory(self, tmp_path):
-        cache_dir = get_document_cache_dir()
+        cache_dir = ensure_document_cache_dir()
         assert cache_dir.exists()
         assert cache_dir.is_dir()
 
     def test_returns_existing_directory(self):
-        first = get_document_cache_dir()
-        second = get_document_cache_dir()
+        first = ensure_document_cache_dir()
+        second = ensure_document_cache_dir()
         assert first == second
         assert first.exists()
 
@@ -79,7 +79,7 @@ class TestCacheDocumentFromBytes:
         # Must NOT contain directory separators
         assert ".." not in basename
         # File must reside inside the cache directory
-        cache_dir = get_document_cache_dir()
+        cache_dir = ensure_document_cache_dir()
         assert Path(path).resolve().is_relative_to(cache_dir.resolve())
 
     def test_null_bytes_stripped(self):
@@ -105,7 +105,7 @@ class TestCacheDocumentFromBytes:
 
 class TestCleanupDocumentCache:
     def test_removes_old_files(self, tmp_path):
-        cache_dir = get_document_cache_dir()
+        cache_dir = ensure_document_cache_dir()
         old_file = cache_dir / "old.txt"
         old_file.write_text("old")
         # Set modification time to 48 hours ago
@@ -117,7 +117,7 @@ class TestCleanupDocumentCache:
         assert not old_file.exists()
 
     def test_keeps_recent_files(self):
-        cache_dir = get_document_cache_dir()
+        cache_dir = ensure_document_cache_dir()
         recent = cache_dir / "recent.txt"
         recent.write_text("fresh")
 
@@ -126,7 +126,7 @@ class TestCleanupDocumentCache:
         assert recent.exists()
 
     def test_returns_removed_count(self):
-        cache_dir = get_document_cache_dir()
+        cache_dir = ensure_document_cache_dir()
         old_time = time.time() - 48 * 3600
         for i in range(3):
             f = cache_dir / f"old_{i}.txt"
