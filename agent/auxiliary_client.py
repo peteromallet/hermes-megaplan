@@ -711,7 +711,7 @@ def resolve_provider_credentials(
     Thin wrapper around :func:`resolve_provider_client` that also derives
     ``api_mode`` from the provider name.  Used by every code path that
     needs to construct or switch to a new provider: fallback activation,
-    the ``switch_model`` tool, and per-task delegation overrides.
+    the ``run_command`` tool, and per-task delegation overrides.
 
     Returns a dict on success::
 

@@ -88,12 +88,12 @@ SKILLS_GUIDANCE = (
     "skill with skill_manage so you can reuse it next time."
 )
 
-SWITCH_MODEL_GUIDANCE = (
-    "You can switch your LLM model mid-conversation using switch_model. "
-    "Use action='list' to see available providers and models, then action='switch' "
-    "to change. Consider switching to a faster/cheaper model for simple tasks, "
-    "or a more capable model for complex reasoning. Your original model is "
-    "{original_model}."
+RUN_COMMAND_GUIDANCE = (
+    "You can execute slash commands on your own session using run_command. "
+    "For example: '/model openrouter:google/gemini-2.5-flash' to switch to a "
+    "faster model, '/compact' to compress context, '/help' to see all commands. "
+    "Consider switching to a faster/cheaper model for simple tasks, or a more "
+    "capable model for complex reasoning."
 )
 
 PLATFORM_HINTS = {

@@ -754,8 +754,7 @@ DELEGATE_TASK_SCHEMA = {
                 "type": "string",
                 "description": (
                     "Provider for this subagent. Overrides the delegation config default. "
-                    "E.g. 'openrouter', 'nous', 'anthropic'. Use switch_model(action='list') "
-                    "to see available providers."
+                    "E.g. 'openrouter', 'nous', 'anthropic'."
                 ),
             },
             "max_iterations": {

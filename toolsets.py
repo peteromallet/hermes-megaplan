@@ -1,28 +1,6 @@
 #!/usr/bin/env python3
+"""Toolset definitions for Hermes Agent.
 """
-Toolsets Module
-
-This module provides a flexible system for defining and managing tool aliases/toolsets.
-Toolsets allow you to group tools together for specific scenarios and can be composed
-from individual tools or other toolsets.
-
-Features:
-- Define custom toolsets with specific tools
-- Compose toolsets from other toolsets
-- Built-in common toolsets for typical use cases
-- Easy extension for new toolsets
-- Support for dynamic toolset resolution
-
-Usage:
-    from toolsets import get_toolset, resolve_toolset, get_all_toolsets
-    
-    # Get tools for a specific toolset
-    tools = get_toolset("research")
-    
-    # Resolve a toolset to get all tool names (including from composed toolsets)
-    all_tools = resolve_toolset("full_stack")
-"""
-
 from typing import List, Dict, Any, Set, Optional
 
 
@@ -50,9 +28,8 @@ _HERMES_CORE_TOOLS = [
     "text_to_speech",
     # Planning & memory
     "todo", "memory",
-    # Model management
-    "switch_model",
-    "smart_model",
+    # Self-command (agent executes its own slash commands via control API)
+    "run_command",
     # Session history search
     "session_search",
     # Clarifying questions
@@ -104,15 +81,9 @@ TOOLSETS = {
         "includes": []
     },
 
-    "switch_model": {
-        "description": "Switch the live agent to a specific provider/model at runtime",
-        "tools": ["switch_model"],
-        "includes": []
-    },
-
-    "smart_model": {
-        "description": "Choose a model preset and switch the live agent at runtime",
-        "tools": ["smart_model"],
+    "run_command": {
+        "description": "Execute slash commands via the local control API (self-command)",
+        "tools": ["run_command"],
         "includes": []
     },
     
@@ -231,15 +202,7 @@ TOOLSETS = {
         "tools": ["mixture_of_agents"],
         "includes": ["web", "vision", "image_gen"]
     },
-    
-    # ==========================================================================
-    # Full Hermes toolsets (CLI + messaging platforms)
-    #
-    # All platforms share the same core tools. Messaging platforms add
-    # All platforms share the same core tools (including send_message,
-    # which is gated on gateway running via its check_fn).
-    # ==========================================================================
-    
+
     "hermes-cli": {
         "description": "Full interactive CLI toolset - all default tools plus cronjob management",
         "tools": _HERMES_CORE_TOOLS,
@@ -298,63 +261,34 @@ TOOLSETS = {
 
 
 def get_toolset(name: str) -> Optional[Dict[str, Any]]:
-    """
-    Get a toolset definition by name.
-    
-    Args:
-        name (str): Name of the toolset
-        
-    Returns:
-        Dict: Toolset definition with description, tools, and includes
-        None: If toolset not found
-    """
-    # Return toolset definition
+    """Return toolset definition by name, or None if not found."""
     return TOOLSETS.get(name)
 
 
 def resolve_toolset(name: str, visited: Set[str] = None) -> List[str]:
-    """
-    Recursively resolve a toolset to get all tool names.
-    
-    This function handles toolset composition by recursively resolving
-    included toolsets and combining all tools.
-    
-    Args:
-        name (str): Name of the toolset to resolve
-        visited (Set[str]): Set of already visited toolsets (for cycle detection)
-        
-    Returns:
-        List[str]: List of all tool names in the toolset
-    """
+    """Recursively resolve toolset (and its includes) to list of tool names. Handles 'all'/* aliases and cycle detection."""
     if visited is None:
         visited = set()
     
-    # Special aliases that represent all tools across every toolset
-    # This ensures future toolsets are automatically included without changes.
     if name in {"all", "*"}:
         all_tools: Set[str] = set()
         for toolset_name in get_toolset_names():
-            # Use a fresh visited set per branch to avoid cross-branch contamination
             resolved = resolve_toolset(toolset_name, visited.copy())
             all_tools.update(resolved)
         return list(all_tools)
 
-    # Check for cycles
     if name in visited:
         print(f"⚠️  Circular dependency detected in toolset '{name}'")
         return []
     
     visited.add(name)
     
-    # Get toolset definition
     toolset = TOOLSETS.get(name)
     if not toolset:
         return []
     
-    # Collect direct tools
     tools = set(toolset.get("tools", []))
     
-    # Recursively resolve included toolsets
     for included_name in toolset.get("includes", []):
         included_tools = resolve_toolset(included_name, visited.copy())
         tools.update(included_tools)
@@ -363,57 +297,28 @@ def resolve_toolset(name: str, visited: Set[str] = None) -> List[str]:
 
 
 def resolve_multiple_toolsets(toolset_names: List[str]) -> List[str]:
-    """
-    Resolve multiple toolsets and combine their tools.
-    
-    Args:
-        toolset_names (List[str]): List of toolset names to resolve
-        
-    Returns:
-        List[str]: Combined list of all tool names (deduplicated)
-    """
+    """Resolve multiple toolsets and return deduplicated combined tool list."""
     all_tools = set()
-    
     for name in toolset_names:
         tools = resolve_toolset(name)
         all_tools.update(tools)
-    
     return list(all_tools)
 
 
 def get_all_toolsets() -> Dict[str, Dict[str, Any]]:
-    """
-    Get all available toolsets with their definitions.
-    
-    Returns:
-        Dict: All toolset definitions
-    """
+    """Return copy of all toolset definitions."""
     return TOOLSETS.copy()
 
 
 def get_toolset_names() -> List[str]:
-    """
-    Get names of all available toolsets (excluding aliases).
-    
-    Returns:
-        List[str]: List of toolset names
-    """
+    """Return list of all toolset names."""
     return list(TOOLSETS.keys())
 
 
 
 
 def validate_toolset(name: str) -> bool:
-    """
-    Check if a toolset name is valid.
-    
-    Args:
-        name (str): Toolset name to validate
-        
-    Returns:
-        bool: True if valid, False otherwise
-    """
-    # Accept special alias names for convenience
+    """Return True if toolset name is valid (including special 'all'/* aliases)."""
     if name in {"all", "*"}:
         return True
     return name in TOOLSETS
@@ -425,15 +330,7 @@ def create_custom_toolset(
     tools: List[str] = None,
     includes: List[str] = None
 ) -> None:
-    """
-    Create a custom toolset at runtime.
-    
-    Args:
-        name (str): Name for the new toolset
-        description (str): Description of the toolset
-        tools (List[str]): Direct tools to include
-        includes (List[str]): Other toolsets to include
-    """
+    """Add or update a custom toolset definition at runtime."""
     TOOLSETS[name] = {
         "description": description,
         "tools": tools or [],
@@ -443,22 +340,14 @@ def create_custom_toolset(
 
 
 
-def get_toolset_info(name: str) -> Dict[str, Any]:
-    """
-    Get detailed information about a toolset including resolved tools.
-    
-    Args:
-        name (str): Toolset name
-        
-    Returns:
-        Dict: Detailed toolset information
-    """
+def get_toolset_info(name: str) -> Optional[Dict[str, Any]]:
+    """Get detailed information about a toolset including resolved tools."""
     toolset = get_toolset(name)
     if not toolset:
         return None
-    
+
     resolved_tools = resolve_toolset(name)
-    
+
     return {
         "name": name,
         "description": toolset["description"],
@@ -485,14 +374,11 @@ def print_toolset_tree(name: str, indent: int = 0) -> None:
         print(f"{prefix}❌ Unknown toolset: {name}")
         return
     
-    # Print toolset name and description
     print(f"{prefix}📦 {name}: {toolset['description']}")
     
-    # Print direct tools
     if toolset["tools"]:
         print(f"{prefix}  🔧 Tools: {', '.join(toolset['tools'])}")
     
-    # Print included toolsets
     if toolset["includes"]:
         print(f"{prefix}  📂 Includes:")
         for included in toolset["includes"]:
