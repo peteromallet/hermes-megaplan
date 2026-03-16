@@ -1,0 +1,53 @@
+- hash: review::.::holistic::ai_generated_debt::dotenv_loading_boilerplate
+  verdict: genuine
+  verdict_reasoning: I verified the same UTF-8-then-latin-1 dotenv loading pattern is repeated in multiple entrypoints instead of being centralized. `run_agent.py` has the full `~/.hermes/.env` plus project fallback block, `gateway/run.py` repeats a slightly different variant, `hermes_cli/main.py` repeats it again, `hermes_cli/doctor.py` repeats it again, and `cron/scheduler.py` repeats the reload logic for each run. This is real duplication, not a false positive.
+  files_read: [run_agent.py, gateway/run.py, hermes_cli/main.py, hermes_cli/doctor.py, cron/scheduler.py]
+  recommendation: Extract a shared helper for env loading and use it from these entrypoints; keep per-call `override=True` behavior only where the scheduler genuinely needs it.
+
+- hash: review::.::holistic::ai_generated_debt::stale_probability_comments
+  verdict: false-positive
+  verdict_reasoning: I searched the assigned code for probability-style comments and found only one relevant instance: `run_agent.py` says rate limiting is the "likely cause of None choices" near the invalid-response backoff path. That is a live heuristic comment aligned with the adjacent returned error text ("Likely rate limited or malformed provider response"), not a stale numeric/probabilistic annotation that has drifted from the code. I did not find a broader pattern of stale probability comments in the files tied to this batch.
+  files_read: [run_agent.py, gateway/run.py, hermes_cli/main.py, toolsets.py]
+  recommendation: Leave it alone unless there is a concrete example of a misleading probability comment elsewhere; this one is a reasonable heuristic note.
+
+- hash: review::.::holistic::ai_generated_debt::toolsets_docstring_bloat
+  verdict: genuine
+  verdict_reasoning: `toolsets.py` opens with a large module docstring containing feature bullets and usage examples. The examples are not even coherent with the current file: they reference `get_toolset("research")` and `resolve_toolset("full_stack")`, but those toolsets do not exist in the current `TOOLSETS` map. That makes the docstring both bloated and partially stale, which is a real AI-generated-debt smell rather than just "a bit wordy."
+  files_read: [toolsets.py]
+  recommendation: Trim the module docstring to a short description and either delete the examples or replace them with current toolset names that actually exist.
+
+- hash: review::.::holistic::ai_generated_debt::toolsets_restating_comments
+  verdict: not-worth-it
+  verdict_reasoning: The file does contain several comments that restate nearby code, for example `# Return toolset definition` immediately before `return TOOLSETS.get(name)`, `# Get toolset definition`, and section headers that repeat the obvious structure. The issue is technically real. However, this file is still readable, and the comments are not causing behavioral risk. Cleaning all of them up would be cosmetic churn, not a meaningful code-health fix.
+  files_read: [toolsets.py]
+  recommendation: Only remove the most obviously redundant comments opportunistically when editing `toolsets.py` for a real change; don’t do a dedicated cleanup pass just for this.
+
+- hash: review::.::holistic::contract_coherence::cache_getters_mutate_filesystem
+  verdict: genuine
+  verdict_reasoning: The contract mismatch is real. `gateway/platforms/base.py` exposes `get_image_cache_dir()`, `get_audio_cache_dir()`, and `get_document_cache_dir()` as getter-style functions, but each one calls `.mkdir(parents=True, exist_ok=True)` before returning. That means a read-sounding API has side effects on the filesystem. The tests confirm and lock this behavior in place for documents: `tests/gateway/test_document_cache.py` explicitly asserts that `get_document_cache_dir()` creates the directory.
+  files_read: [gateway/platforms/base.py, tests/gateway/test_document_cache.py]
+  recommendation: Rename these helpers to something explicit like `ensure_*_cache_dir()` or split into a pure getter plus an ensuring helper.
+
+- hash: review::.::holistic::contract_coherence::deliver_returns_sendresult_not_dict
+  verdict: exaggerated
+  verdict_reasoning: I checked `DeliveryRouter.deliver()` in `gateway/delivery.py`. It returns a top-level dict keyed by target string, and each entry is shaped like `{"success": True, "result": result}`. For local delivery, `result` is a dict from `_deliver_local()`. For platform delivery, `_deliver_to_platform()` returns whatever `adapter.send()` returns, which in current adapters is a `SendResult` object. So the inconsistency is real, but the title overstates it: `deliver()` itself does not return a bare `SendResult`; it returns a dict that may contain a `SendResult` under `"result"`.
+  files_read: [gateway/delivery.py, gateway/platforms/base.py]
+  recommendation: Normalize `deliver()` results so each target entry is plain JSON-serializable data, for example by converting `SendResult` to a dict before storing it.
+
+- hash: review::.::holistic::contract_coherence::toolset_info_returns_none
+  verdict: genuine
+  verdict_reasoning: `toolsets.py` declares `def get_toolset_info(name: str) -> Dict[str, Any]:` but returns `None` when the toolset is missing. That is a direct type-contract violation, not an interpretation issue. The function body clearly does `if not toolset: return None`.
+  files_read: [toolsets.py]
+  recommendation: Change the signature to `Optional[Dict[str, Any]]` or raise on unknown toolsets; the current annotation is incorrect.
+
+- hash: review::.::holistic::test_strategy::gateway_run_untested_pipeline
+  verdict: exaggerated
+  verdict_reasoning: The pipeline is not untested. I verified multiple tests that exercise `gateway.run` behavior directly, including `_run_agent` progress routing in `tests/gateway/test_run_progress_topics.py`, Codex credential-refresh behavior through `_run_agent` in `tests/test_codex_execution_paths.py`, session-hygiene handling in `tests/gateway/test_session_hygiene.py`, background-process watcher behavior in `tests/gateway/test_background_process_notifications.py`, and config-bridge parity checks in `tests/test_auxiliary_config_bridge.py`. There are still gaps: some assertions are textual/parity-based rather than full end-to-end tests, and I did not find focused tests for the per-platform toolset-selection branch inside `_run_agent`. But calling the pipeline "untested" is wrong.
+  files_read: [gateway/run.py, tests/gateway/test_run_progress_topics.py, tests/test_codex_execution_paths.py, tests/gateway/test_session_hygiene.py, tests/gateway/test_background_process_notifications.py, tests/test_auxiliary_config_bridge.py]
+  recommendation: Reframe this as targeted coverage gaps in specific `gateway.run` branches, not an untested pipeline wholesale.
+
+- hash: review::.::holistic::test_strategy::object_new_fragility
+  verdict: genuine
+  verdict_reasoning: I verified widespread use of `object.__new__(GatewayRunner)` and `GatewayRunner.__new__(GatewayRunner)` in tests such as `tests/gateway/test_resume_command.py`, `tests/gateway/test_autoreply_command.py`, `tests/gateway/test_title_command.py`, `tests/gateway/test_background_command.py`, `tests/gateway/test_run_progress_topics.py`, and others. These tests manually set only the attributes they happen to need. `GatewayRunner.__init__` initializes many fields (`config`, `session_store`, `delivery_router`, `_pending_approvals`, `_honcho_managers`, `_autoreply_configs`, etc.), so bypassing it is fragile: adding a new implicit dependency in a handler can break unrelated tests or, worse, leave tests passing with unrealistic object state if the handler never touches the missing field.
+  files_read: [gateway/run.py, tests/gateway/test_resume_command.py, tests/gateway/test_autoreply_command.py, tests/gateway/test_background_command.py, tests/gateway/test_run_progress_topics.py, tests/test_personality_none.py]
+  recommendation: Introduce lightweight test builders/factories that construct minimally valid `GatewayRunner` instances through a controlled path, or extract smaller units so tests do not need partially initialized runner objects.

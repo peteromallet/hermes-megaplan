@@ -1,0 +1,53 @@
+- hash: review::.::holistic::abstraction_fitness::tools_init_redundant_barrel
+  verdict: genuine
+  verdict_reasoning: I read `tools/__init__.py` and checked actual imports across the repo. The file is a 264-line barrel that eagerly re-exports a large set of tool functions and schemas, but the codebase almost never imports from the package root. `rg` found only one real `from tools import ...` use in `tools/file_tools.py`, and that import exists only to reach `check_file_requirements()`. The main tool-loading path is already `model_tools._discover_tools()`, which imports concrete modules directly. That makes the barrel largely redundant and a second abstraction surface to maintain.
+  files_read: [tools/__init__.py, tools/file_tools.py, model_tools.py]
+  recommendation: Remove or sharply reduce the root barrel. If `check_file_requirements()` is the only live package-root API, move that helper into `tools/file_tools.py` or a small dedicated module and stop treating `tools/__init__.py` as a broad export layer.
+
+- hash: review::.::holistic::convention_outlier::check_ha_requirements_naming
+  verdict: false-positive
+  verdict_reasoning: The flagged name exists in `gateway/platforms/homeassistant.py` as `check_ha_requirements()`. I checked surrounding code and tests: the same HA abbreviation is used consistently for tool names (`ha_list_entities`, `ha_get_state`, etc.), config vars (`HASS_TOKEN`, `HASS_URL`), docs within the module, and tests that import `check_ha_requirements` directly. This is not an isolated naming outlier; it is the local convention for Home Assistant in this codebase.
+  files_read: [gateway/platforms/homeassistant.py, tools/homeassistant_tool.py, tests/gateway/test_homeassistant.py]
+  recommendation: Leave the name as-is. Rename only if the project decides to remove the `ha_*` shorthand everywhere, which would be a broad convention change rather than a targeted cleanup.
+
+- hash: review::.::holistic::convention_outlier::large_tools_init_barrel
+  verdict: genuine
+  verdict_reasoning: `tools/__init__.py` is unusually large for an `__init__` file and acts as a heavy export barrel rather than a light package marker. It imports many submodules up front and maintains a long `__all__`, while the rest of the repo generally imports specific tool modules directly. That makes this `__init__` materially different from the other package initializers in the repository, which are mostly empty or minimal.
+  files_read: [tools/__init__.py, agent/__init__.py, gateway/__init__.py, cron/__init__.py]
+  recommendation: Treat `tools/__init__.py` as a minimal package file instead of a bulk barrel. Keep only package metadata or a very small set of intentionally supported root exports.
+
+- hash: review::.::holistic::convention_outlier::platform_sys_path_split
+  verdict: genuine
+  verdict_reasoning: I verified repeated manual `sys.path.insert(...)` bootstrapping in multiple files: `gateway/run.py`, `gateway/platforms/base.py`, `gateway/platforms/slack.py`, `gateway/platforms/telegram.py`, `gateway/platforms/discord.py`, `gateway/platforms/whatsapp.py`, `cron/scheduler.py`, and `tools/cronjob_tools.py`. The platform adapters are inside a package and still mutate import paths individually, which is a real convention outlier and creates multiple entrypoint-specific import assumptions.
+  files_read: [gateway/run.py, gateway/platforms/base.py, gateway/platforms/slack.py, gateway/platforms/telegram.py, gateway/platforms/discord.py, gateway/platforms/whatsapp.py, cron/scheduler.py, tools/cronjob_tools.py]
+  recommendation: Centralize path bootstrapping at true script entrypoints only, and remove it from importable package modules like the platform adapters.
+
+- hash: review::.::holistic::dependency_health::dual_http_clients
+  verdict: exaggerated
+  verdict_reasoning: The repo does use multiple HTTP clients, but the situation is more nuanced than a simple dependency-health defect. I verified `httpx` is the dominant client across CLI auth, skills hub, signal, Slack media fetches, and shared gateway helpers; `aiohttp` is used where async web server or WebSocket/session behavior matters, especially Home Assistant and WhatsApp; `requests` appears in only a few synchronous spots such as `tools/browser_tool.py` and `agent/model_metadata.py`. That is some inconsistency, but it is not arbitrary duplication across the same call sites.
+  files_read: [tools/browser_tool.py, agent/model_metadata.py, gateway/control_api.py, gateway/platforms/base.py, gateway/platforms/homeassistant.py, gateway/platforms/signal.py, tools/homeassistant_tool.py, tools/send_message_tool.py, hermes_cli/auth.py]
+  recommendation: If cleanup is desired, target `requests` first and converge those few sync call sites onto `httpx`. Keeping both `httpx` and `aiohttp` is defensible given the async server/WebSocket usage.
+
+- hash: review::.::holistic::dependency_health::orphaned_mini_swe_deps
+  verdict: genuine
+  verdict_reasoning: I checked the declared deps and the live imports. `pyproject.toml` and `requirements.txt` both carry `litellm`, `typer`, and `platformdirs` with comments saying they are for mini-swe-agent, but `rg` found no direct imports of those packages anywhere in the Hermes code. I also checked the repository state: `mini-swe-agent/` exists but is empty in this workspace, so the root package is carrying backend-related deps without the vendored backend source actually being present.
+  files_read: [pyproject.toml, requirements.txt, tools/terminal_tool.py, mini_swe_runner.py]
+  recommendation: Move these dependencies behind a terminal-specific optional extra, or ensure the mini-swe-agent backend is actually vendored/pinned in the repo so the dependency relationship is explicit and live.
+
+- hash: review::.::holistic::dependency_health::requirements_txt_drift
+  verdict: genuine
+  verdict_reasoning: The drift is real and visible from the files themselves. `requirements.txt` explicitly says it is convenience-only and that `pyproject.toml` is canonical, but the contents already differ: `pyproject.toml` includes `anthropic>=0.39.0` and optional extras like Slack separately, while `requirements.txt` includes `croniter`, `python-telegram-bot`, `discord.py`, and `aiohttp` inline and omits `anthropic`. This is a real duplicated dependency surface with mismatched contents.
+  files_read: [requirements.txt, pyproject.toml]
+  recommendation: Either generate `requirements.txt` from `pyproject.toml` or remove the handwritten file and document one installation path. As it stands, it will keep drifting.
+
+- hash: review::.::holistic::dependency_health::unused_jinja2_dep
+  verdict: genuine
+  verdict_reasoning: I searched the non-doc codebase and found no runtime imports of `jinja2` at all. The only hits are dependency declarations in `pyproject.toml`, `requirements.txt`, and lockfile entries in `uv.lock`. Based on the current source tree, `jinja2` is not used by application code.
+  files_read: [pyproject.toml, requirements.txt]
+  recommendation: Remove `jinja2` from declared dependencies unless there is an external or optional path that truly requires it and should be documented.
+
+- hash: review::.::holistic::design_coherence::gateway_config_yaml_reload
+  verdict: genuine
+  verdict_reasoning: `gateway/run.py` rereads `~/.hermes/config.yaml` in many separate helper methods instead of loading once and reusing a coherent config object. I verified repeated `yaml.safe_load()` calls at module import time and again in methods such as `_load_prefill_messages`, `_load_ephemeral_system_prompt`, `_load_reasoning_config`, `_load_show_reasoning`, `_load_background_notifications_mode`, `_load_provider_routing`, `_load_fallback_model`, plus several command handlers later in the file. Some rereads are intentional for dynamic reload behavior, but the current pattern is fragmented and mixes startup config, per-run config, and ad hoc command-time config access.
+  files_read: [gateway/run.py, gateway/config.py, cron/scheduler.py]
+  recommendation: Introduce one clear config access layer for the gateway: either cache the parsed config on `GatewayRunner` with explicit refresh points, or formalize which features intentionally reread disk. Right now the behavior is scattered enough to be a real coherence issue.

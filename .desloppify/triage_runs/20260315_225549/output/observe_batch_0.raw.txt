@@ -1,0 +1,53 @@
+- hash: review::.::holistic::cross_module_architecture::registry_violates_own_contract
+  verdict: genuine
+  verdict_reasoning: The documented contract is explicit in both [AGENTS.md](/Users/peteromalley/Documents/hermes-agent/AGENTS.md) and [website/docs/developer-guide/adding-tools.md](/Users/peteromalley/Documents/hermes-agent/website/docs/developer-guide/adding-tools.md): handlers must return JSON strings. `ToolRegistry.dispatch()` in [tools/registry.py](/Users/peteromalley/Documents/hermes-agent/tools/registry.py) catches exceptions and returns JSON on failure, but it does not validate successful handler returns at all. If a handler accidentally returns a raw dict/string/object, the registry passes it through unchanged. That means the central registry does not actually enforce the contract it tells all tool authors to follow. Tests in [tests/tools/test_registry.py](/Users/peteromalley/Documents/hermes-agent/tests/tools/test_registry.py) only cover the happy path where handlers already return JSON, so this gap is real and currently unguarded.
+  files_read: [/Users/peteromalley/Documents/hermes-agent/tools/registry.py, /Users/peteromalley/Documents/hermes-agent/website/docs/developer-guide/adding-tools.md, /Users/peteromalley/Documents/hermes-agent/AGENTS.md, /Users/peteromalley/Documents/hermes-agent/tests/tools/test_registry.py]
+  recommendation: Add a small enforcement layer in `dispatch()` that rejects or wraps non-string / non-JSON returns, and add a regression test for a handler that returns a raw dict.
+
+- hash: review::.::holistic::logic_clarity::dead_code_checkpoint_manager
+  verdict: genuine
+  verdict_reasoning: In `CheckpointManager.list_checkpoints()` there are two consecutive `_run_git()` calls in [tools/checkpoint_manager.py](/Users/peteromalley/Documents/hermes-agent/tools/checkpoint_manager.py). The first assigns `ok, stdout, _` using a `--no-walk=unsorted`/`HEAD` command, then those variables are immediately overwritten by a second `git log` call before any branch can inspect the first result. The inline comment even says “Simpler: just use regular log”, which confirms the first call is leftover dead code rather than intentional fallback logic.
+  files_read: [/Users/peteromalley/Documents/hermes-agent/tools/checkpoint_manager.py, /Users/peteromalley/Documents/hermes-agent/run_agent.py]
+  recommendation: Remove the first `_run_git()` invocation and keep the single regular `git log` path.
+
+- hash: review::.::holistic::logic_clarity::duplicated_dead_countdown_check
+  verdict: genuine
+  verdict_reasoning: In [cli.py](/Users/peteromalley/Documents/hermes-agent/cli.py) around the clarify polling loop, the countdown refresh condition is duplicated back-to-back with identical bodies: `if now - _last_countdown_refresh >= 5.0: ... self._invalidate()` appears twice in succession. Because the first branch updates `_last_countdown_refresh`, the second branch is dead on every execution. This is not just stylistic duplication; the second check is unreachable after the first runs.
+  files_read: [/Users/peteromalley/Documents/hermes-agent/cli.py]
+  recommendation: Delete the second duplicate `if now - _last_countdown_refresh >= 5.0` block.
+
+- hash: review::.::holistic::logic_clarity::identical_branches_skills_sync
+  verdict: not-worth-it
+  verdict_reasoning: The claimed duplication is real but minor. In [tools/skills_sync.py](/Users/peteromalley/Documents/hermes-agent/tools/skills_sync.py), the `if not origin_hash:` branch increments `skipped += 1` in both the `user_hash == bundled_hash` and `else` cases. The behavior is intentionally the same because the branch is preserving a safe migration baseline for old v1 manifests while the comments explain the two distinct meanings: “already in sync” vs “cannot tell whether user modified or bundle changed.” Collapsing it would save a couple lines but make the migration reasoning slightly less explicit.
+  files_read: [/Users/peteromalley/Documents/hermes-agent/tools/skills_sync.py]
+  recommendation: Leave it unless someone is already touching this migration branch; at most, replace the inner conditional with one `skipped += 1` and keep the explanatory comments.
+
+- hash: review::.::holistic::logic_clarity::identical_branches_telegram_document
+  verdict: false-positive
+  verdict_reasoning: I checked the current `send_document()` implementation in [gateway/platforms/telegram.py](/Users/peteromalley/Documents/hermes-agent/gateway/platforms/telegram.py). There is no identical-branch structure in that method. The control flow is: early return if `_bot` is missing, early return if the file path is missing, normal send path, and exception fallback to the base adapter. Those branches do different things. The nearby `send_video()` method has a similar shape, but that is normal method-level consistency, not “identical branches” within `send_document()`.
+  files_read: [/Users/peteromalley/Documents/hermes-agent/gateway/platforms/telegram.py]
+  recommendation: No change needed for this specific issue.
+
+- hash: review::.::holistic::logic_clarity::identical_branches_uninstall
+  verdict: genuine
+  verdict_reasoning: In [hermes_cli/uninstall.py](/Users/peteromalley/Documents/hermes-agent/hermes_cli/uninstall.py), the branch checking whether the install lives under `~/.hermes/` has identical bodies on both sides: both branches call `shutil.rmtree(project_root)` and then `log_success(f"Removed {project_root}")`. The condition currently communicates caution, but it does not alter behavior at all.
+  files_read: [/Users/peteromalley/Documents/hermes-agent/hermes_cli/uninstall.py]
+  recommendation: Collapse the conditional to one removal path, or introduce genuinely different safety behavior if the distinction matters.
+
+- hash: review::.::holistic::low_level_elegance::defensive_hasattr_after_init
+  verdict: exaggerated
+  verdict_reasoning: There are several `hasattr` checks in [tools/delegate_tool.py](/Users/peteromalley/Documents/hermes-agent/tools/delegate_tool.py), but they are not all pointless. For real `AIAgent` instances, `_client_kwargs` and `_active_children` are initialized in [run_agent.py](/Users/peteromalley/Documents/hermes-agent/run_agent.py), so the guards are redundant in the mainline production path. But `delegate_task()` is also exercised with mocks and looser parent-like objects in [tests/tools/test_delegate.py](/Users/peteromalley/Documents/hermes-agent/tests/tools/test_delegate.py), and the function signature does not hard-require a concrete `AIAgent` type. That makes the guards at least partially intentional compatibility code rather than pure clutter. The issue overstates this as a clear elegance defect.
+  files_read: [/Users/peteromalley/Documents/hermes-agent/tools/delegate_tool.py, /Users/peteromalley/Documents/hermes-agent/run_agent.py, /Users/peteromalley/Documents/hermes-agent/tests/tools/test_delegate.py]
+  recommendation: Only remove these guards if the code is tightened to require a real `AIAgent`; otherwise leave them or replace them with one clearer helper for optional parent capabilities.
+
+- hash: review::.::holistic::low_level_elegance::patch_parser_duplicated_flush
+  verdict: false-positive
+  verdict_reasoning: I read the parser state transitions in [tools/patch_parser.py](/Users/peteromalley/Documents/hermes-agent/tools/patch_parser.py). The repeated `if current_op: if current_hunk and current_hunk.lines: current_op.hunks.append(current_hunk); operations.append(current_op)` blocks occur at each operation boundary (`Update`, `Add`, `Delete`, `Move`) because the parser is flushing the previous operation before starting a new one. That repetition is real, but it is not a duplicated “flush” bug: each site is part of the same finite-state transition and only runs on different marker types. The current implementation is straightforward and correct.
+  files_read: [/Users/peteromalley/Documents/hermes-agent/tools/patch_parser.py]
+  recommendation: No urgent change. If this file is refactored later, a tiny helper like `_flush_current_op()` would reduce repetition, but this is optional cleanup.
+
+- hash: review::.::holistic::low_level_elegance::repeated_config_yaml_loading
+  verdict: not-worth-it
+  verdict_reasoning: There is definitely repeated `config.yaml` loading across [hermes_cli/config.py](/Users/peteromalley/Documents/hermes-agent/hermes_cli/config.py), [cli.py](/Users/peteromalley/Documents/hermes-agent/cli.py), [gateway/run.py](/Users/peteromalley/Documents/hermes-agent/gateway/run.py), [cron/scheduler.py](/Users/peteromalley/Documents/hermes-agent/cron/scheduler.py), [tools/delegate_tool.py](/Users/peteromalley/Documents/hermes-agent/tools/delegate_tool.py), and [tools/code_execution_tool.py](/Users/peteromalley/Documents/hermes-agent/tools/code_execution_tool.py). But the duplication is partly structural, not accidental: the codebase explicitly has separate config loaders for CLI startup vs persistent config, gateway refreshes config live without restart, cron re-reads config on each job, and some tools intentionally consult runtime `CLI_CONFIG` first. A forced central abstraction here risks breaking those different freshness and precedence rules. This is a real aesthetic smell, but the issue as framed pushes too hard toward unification.
+  files_read: [/Users/peteromalley/Documents/hermes-agent/hermes_cli/config.py, /Users/peteromalley/Documents/hermes-agent/cli.py, /Users/peteromalley/Documents/hermes-agent/gateway/run.py, /Users/peteromalley/Documents/hermes-agent/cron/scheduler.py, /Users/peteromalley/Documents/hermes-agent/tools/delegate_tool.py, /Users/peteromalley/Documents/hermes-agent/tools/code_execution_tool.py]
+  recommendation: Do not centralize blindly. If this area is improved, extract only small shared helpers for file reading/normalization while preserving separate loader semantics and hot-reload behavior.

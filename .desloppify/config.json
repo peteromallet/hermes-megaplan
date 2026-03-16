@@ -16,7 +16,8 @@
     "landingpage",
     "docs",
     "assets",
-    "venv/"
+    "venv/",
+    "venv"
   ],
   "ignore": [],
   "ignore_metadata": {},
