@@ -11,6 +11,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from gateway.config import Platform
+from gateway.platforms.base import BasePlatformAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +43,12 @@ def _session_entry_name(origin: Dict[str, Any]) -> str:
 # Build / refresh
 # ---------------------------------------------------------------------------
 
-def build_channel_directory(adapters: Dict[Any, Any]) -> Dict[str, Any]:
+def build_channel_directory(adapters: Dict[Platform, BasePlatformAdapter]) -> Dict[str, Any]:
     """
     Build a channel directory from connected platform adapters and session data.
 
     Returns the directory dict and writes it to DIRECTORY_PATH.
     """
-    from gateway.config import Platform
-
     platforms: Dict[str, List[Dict[str, str]]] = {}
 
     for platform, adapter in adapters.items():
