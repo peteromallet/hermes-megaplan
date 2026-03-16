@@ -4,9 +4,16 @@ Handles config parsing, state management, prompt building, and LLM calls.
 Consumers (CLI, gateway) only handle injection into their respective message loops.
 """
 
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 
+logger = logging.getLogger(__name__)
+
 _DEFAULT_MAX_TURNS = 20
+
+# Marker constants used by CLI and gateway to tag auto-reply messages.
+GATEWAY_MSG_PREFIX = "autoreply-"
+CLI_INPUT_PREFIX = "[autoreply]"
 
 
 def parse_autoreply_args(args: str) -> Tuple[str, Optional[Dict[str, Any]]]:
@@ -129,21 +136,14 @@ def build_autoreply_messages(config: Dict[str, Any],
 
 
 def check_and_advance(config: Dict[str, Any]) -> Tuple[Optional[str], bool]:
-    """Check turn cap and handle literal mode.
+    """Check turn cap and advance literal mode if applicable.
 
-    Returns (reply_text, cap_reached).
-    - (None, False): config is None / not applicable (caller didn't pass config)
-    - (None, True): turn cap reached, config should be removed
-    - (text, False): literal mode reply, turn_count incremented
-    - None for LLM mode: caller should proceed to call the LLM
+    Caller must verify config is not None before calling.
 
-    For LLM mode, returns a sentinel to indicate the caller should proceed:
-    the return is (None, False) when turn_count < max_turns and not literal.
-    But we can't distinguish "no config" from "LLM needed" with just (None, False).
-
-    So the contract is: caller checks config existence first, then calls this.
-    If this returns (None, True) → cap reached. If it returns a string → use it.
-    If it returns (None, False) → proceed to LLM call.
+    Returns (reply_text, cap_reached):
+    - (None, True): max_turns exceeded, caller should disable autoreply
+    - (text, False): literal mode — return this text, turn_count incremented
+    - (None, False): LLM mode — caller should proceed to LLM call
     """
     if config["max_turns"] > 0 and config["turn_count"] >= config["max_turns"]:
         return None, True
@@ -153,6 +153,51 @@ def check_and_advance(config: Dict[str, Any]) -> Tuple[Optional[str], bool]:
         return config["prompt"], False
 
     return None, False
+
+
+def prepare_llm_call(config: Dict[str, Any],
+                     history: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Build call_llm kwargs from config and history."""
+    messages = build_autoreply_messages(config, history)
+    kwargs: Dict[str, Any] = {
+        "task": "autoreply",
+        "messages": messages,
+        "temperature": 0.7,
+        "max_tokens": 1024,
+    }
+    if config.get("model"):
+        kwargs["model"] = config["model"]
+    return kwargs
+
+
+def extract_reply(config: Dict[str, Any], response) -> Optional[str]:
+    """Extract reply text from LLM response, or None on empty/missing content.
+
+    Increments config["turn_count"] only on success.  Returns None (without
+    incrementing) when the LLM returns no choices or empty content, so the
+    caller can decide how to handle the gap.
+    """
+    if not response.choices:
+        logger.warning("[AutoReply] LLM returned no choices")
+        return None
+    content = response.choices[0].message.content
+    if not content:
+        logger.warning("[AutoReply] LLM returned empty content")
+        return None
+    config["turn_count"] += 1
+    return content.strip()
+
+
+def session_info(config: Optional[Dict[str, Any]]) -> dict:
+    """Build autoreply status dict for the control API."""
+    return {
+        "autoreply": {
+            "enabled": config is not None,
+            "prompt": config.get("prompt", "") if config else None,
+            "max_turns": config.get("max_turns", 0) if config else None,
+            "turn_count": config.get("turn_count", 0) if config else None,
+        },
+    }
 
 
 def format_status(config: Dict[str, Any]) -> str:
