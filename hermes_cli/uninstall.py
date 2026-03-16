@@ -276,14 +276,8 @@ def run_uninstall(args):
     # We need to be careful here
     try:
         if project_root.exists():
-            # If the install is inside ~/.hermes/, just remove the hermes-agent subdir
-            if hermes_home in project_root.parents or project_root.parent == hermes_home:
-                shutil.rmtree(project_root)
-                log_success(f"Removed {project_root}")
-            else:
-                # Installation is somewhere else entirely
-                shutil.rmtree(project_root)
-                log_success(f"Removed {project_root}")
+            shutil.rmtree(project_root)
+            log_success(f"Removed {project_root}")
     except Exception as e:
         log_warn(f"Could not fully remove {project_root}: {e}")
         log_info("You may need to manually remove it")

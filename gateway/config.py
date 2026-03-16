@@ -13,7 +13,7 @@ import os
 import json
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Literal, Optional, Any
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -59,18 +59,20 @@ class HomeChannel:
         )
 
 
+ResetMode = Literal["daily", "idle", "both", "none"]
+
 @dataclass
 class SessionResetPolicy:
     """
     Controls when sessions reset (lose context).
     
     Modes:
-    - "daily": Reset at a specific hour each day
-    - "idle": Reset after N minutes of inactivity
-    - "both": Whichever triggers first (daily boundary OR idle timeout)
-    - "none": Never auto-reset (context managed only by compression)
+    - "daily": reset at a specific hour
+    - "idle": reset after N minutes of inactivity
+    - "both": whichever happens first
+    - "none": sessions last forever
     """
-    mode: str = "both"  # "daily", "idle", "both", or "none"
+    mode: ResetMode = "both"  # "daily", "idle", "both", or "none"
     at_hour: int = 4  # Hour for daily reset (0-23, local time)
     idle_minutes: int = 1440  # Minutes of inactivity before reset (24 hours)
     

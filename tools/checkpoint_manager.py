@@ -252,13 +252,6 @@ class CheckpointManager:
         if not (shadow / "HEAD").exists():
             return []
 
-        ok, stdout, _ = _run_git(
-            ["log", "--format=%H|%h|%aI|%s", "--no-walk=unsorted",
-             "--all" if False else "HEAD",  # just HEAD lineage
-             "-n", str(self.max_snapshots)],
-            shadow, abs_dir,
-        )
-
         # Simpler: just use regular log
         ok, stdout, _ = _run_git(
             ["log", "--format=%H|%h|%aI|%s", "-n", str(self.max_snapshots)],

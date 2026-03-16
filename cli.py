@@ -3545,9 +3545,6 @@ class HermesCLI:
                 if now - _last_countdown_refresh >= 5.0:
                     _last_countdown_refresh = now
                     self._invalidate()
-                if now - _last_countdown_refresh >= 5.0:
-                    _last_countdown_refresh = now
-                    self._invalidate()
 
         # Timed out — tear down the UI and let the agent decide
         self._clarify_state = None
