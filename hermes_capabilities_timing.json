@@ -4,112 +4,126 @@
       "index": 0,
       "type": "action",
       "start_t": 0.0,
-      "end_t": 0.007,
+      "end_t": 0.005,
       "action": "clear"
     },
     {
       "index": 1,
       "type": "action",
-      "start_t": 0.007,
-      "end_t": 0.946,
+      "start_t": 0.005,
+      "end_t": 0.95,
       "action": "type_command"
     },
     {
       "index": 2,
       "type": "action",
-      "start_t": 0.946,
-      "end_t": 1.248,
+      "start_t": 0.95,
+      "end_t": 1.255,
       "action": "pause"
     },
     {
       "index": 3,
       "type": "action",
-      "start_t": 1.248,
-      "end_t": 1.448,
+      "start_t": 1.255,
+      "end_t": 1.43,
       "action": "banner"
     },
     {
       "index": 4,
       "type": "action",
-      "start_t": 1.448,
-      "end_t": 2.453,
+      "start_t": 1.43,
+      "end_t": 2.435,
       "action": "pause"
     },
     {
       "index": 5,
       "type": "conversation",
-      "start_t": 2.453,
-      "end_t": 6.266,
+      "start_t": 2.435,
+      "end_t": 6.201,
       "markers": {
-        "user_start": 2.955,
-        "user_end": 5.605,
-        "thinking_start": 5.605,
-        "thinking_end": 5.855,
-        "response_start": 5.855,
-        "response_end": 5.862
+        "user_start": 2.94,
+        "user_end": 5.545,
+        "thinking_start": 5.545,
+        "thinking_end": 5.796,
+        "response_start": 5.796,
+        "response_end": 5.799
       }
     },
     {
       "index": 6,
       "type": "conversation",
-      "start_t": 6.267,
-      "end_t": 9.854,
+      "start_t": 6.201,
+      "end_t": 9.707,
       "markers": {
-        "user_start": 6.772,
-        "user_end": 9.203,
-        "thinking_start": 9.203,
-        "thinking_end": 9.45,
-        "response_start": 9.45,
-        "response_end": 9.452
+        "user_start": 6.706,
+        "user_end": 9.052,
+        "thinking_start": 9.052,
+        "thinking_end": 9.302,
+        "response_start": 9.303,
+        "response_end": 9.304
       }
     },
     {
       "index": 7,
       "type": "conversation",
-      "start_t": 9.854,
-      "end_t": 13.203,
+      "start_t": 9.707,
+      "end_t": 12.888,
       "markers": {
-        "user_start": 10.359,
-        "user_end": 12.447,
-        "thinking_start": 12.447,
-        "thinking_end": 12.697,
-        "response_start": 12.697,
-        "response_end": 12.698
+        "user_start": 10.212,
+        "user_end": 12.234,
+        "thinking_start": 12.234,
+        "thinking_end": 12.482,
+        "response_start": 12.482,
+        "response_end": 12.483
       }
     },
     {
       "index": 8,
       "type": "conversation",
-      "start_t": 13.203,
-      "end_t": 22.451,
+      "start_t": 12.888,
+      "end_t": 16.39,
       "markers": {
-        "user_start": 13.707,
-        "user_end": 15.356,
-        "thinking_start": 15.356,
-        "thinking_end": 19.448,
-        "response_start": 19.448,
-        "response_end": 19.449
+        "user_start": 13.39,
+        "user_end": 15.635,
+        "thinking_start": 15.635,
+        "thinking_end": 15.885,
+        "response_start": 15.885,
+        "response_end": 15.888
       }
     },
     {
       "index": 9,
-      "type": "action",
-      "start_t": 22.452,
-      "end_t": 22.452,
-      "action": "camera",
+      "type": "conversation",
+      "start_t": 16.391,
+      "end_t": 25.765,
       "markers": {
-        "camera": 22.452,
-        "_zoom": 1.0,
-        "_duration": 1.5
+        "user_start": 16.895,
+        "user_end": 18.675,
+        "thinking_start": 18.675,
+        "thinking_end": 22.757,
+        "response_start": 22.757,
+        "response_end": 22.759
       }
     },
     {
       "index": 10,
       "type": "action",
-      "start_t": 22.452,
-      "end_t": 24.454,
+      "start_t": 25.765,
+      "end_t": 25.765,
+      "action": "camera",
+      "markers": {
+        "camera": 25.765,
+        "_zoom": 1.0,
+        "_duration": 1.5
+      }
+    },
+    {
+      "index": 11,
+      "type": "action",
+      "start_t": 25.765,
+      "end_t": 27.766,
       "action": "pause"
     }
   ],
-  "total_duration": 24.453931082971394
+  "total_duration": 27.76644020806998
 }
