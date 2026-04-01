@@ -300,6 +300,10 @@ class DockerEnvironment(BaseEnvironment):
         host_cwd: str = None,
         auto_mount_cwd: bool = False,
         run_as_host_user: bool = False,
+        skip_home_overlay: bool = False,
+        skip_security_args: bool = False,
+        extra_run_args: list[str] | None = None,
+>>>>>>> 243386977 (feat: Docker execution — run hermes agent inside SWE-bench container)
     ):
         if cwd == "~":
             cwd = "/root"
@@ -308,6 +312,10 @@ class DockerEnvironment(BaseEnvironment):
         self._task_id = task_id
         self._forward_env = _normalize_forward_env_names(forward_env)
         self._env = _normalize_env_dict(env)
+        self._skip_home_overlay = skip_home_overlay
+        self._skip_security_args = skip_security_args
+        self._extra_run_args = list(extra_run_args) if extra_run_args else None
+>>>>>>> 243386977 (feat: Docker execution — run hermes agent inside SWE-bench container)
         self._container_id: Optional[str] = None
         logger.info(f"DockerEnvironment volumes: {volumes}")
         # Ensure volumes is a list (config.yaml could be malformed)
@@ -374,9 +382,10 @@ class DockerEnvironment(BaseEnvironment):
             sandbox = get_sandbox_dir() / "docker" / task_id
             self._home_dir = str(sandbox / "home")
             os.makedirs(self._home_dir, exist_ok=True)
-            writable_args.extend([
-                "-v", f"{self._home_dir}:/root",
-            ])
+            if not self._skip_home_overlay:
+                writable_args.extend([
+                    "-v", f"{self._home_dir}:/root",
+                ])
             if not bind_host_cwd and not workspace_explicitly_mounted:
                 self._workspace_dir = str(sandbox / "workspace")
                 os.makedirs(self._workspace_dir, exist_ok=True)
@@ -388,10 +397,11 @@ class DockerEnvironment(BaseEnvironment):
                 writable_args.extend([
                     "--tmpfs", "/workspace:rw,exec,size=10g",
                 ])
-            writable_args.extend([
-                "--tmpfs", "/home:rw,exec,size=1g",
-                "--tmpfs", "/root:rw,exec,size=1g",
-            ])
+            if not self._skip_home_overlay:
+                writable_args.extend([
+                    "--tmpfs", "/home:rw,exec,size=1g",
+                    "--tmpfs", "/root:rw,exec,size=1g",
+                ])
 
         if bind_host_cwd:
             logger.info(f"Mounting configured host cwd to /workspace: {host_cwd_abs}")
@@ -477,12 +487,13 @@ class DockerEnvironment(BaseEnvironment):
 
         logger.info(f"Docker volume_args: {volume_args}")
         all_run_args = (
-            security_args
+            (security_args if not self._skip_security_args else [])
             + user_args
             + writable_args
             + resource_args
             + volume_args
             + env_args
+            + (self._extra_run_args or [])
         )
         logger.info(f"Docker run_args: {all_run_args}")
 

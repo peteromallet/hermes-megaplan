@@ -391,6 +391,9 @@ def _get_file_ops(task_id: str = "default") -> ShellFileOperations:
                     "docker_mount_cwd_to_workspace": config.get("docker_mount_cwd_to_workspace", False),
                     "docker_forward_env": config.get("docker_forward_env", []),
                     "docker_run_as_host_user": config.get("docker_run_as_host_user", False),
+                    "docker_skip_home_overlay": config.get("docker_skip_home_overlay", False),
+                    "docker_skip_security_args": config.get("docker_skip_security_args", False),
+                    "docker_extra_args": config.get("docker_extra_args", []),
                 }
 
             ssh_config = None
