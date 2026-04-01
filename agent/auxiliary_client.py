@@ -2035,6 +2035,12 @@ def resolve_provider_client(
             client_obj, final_model_str, api_key_str, base_url_str, api_mode,
         )
 
+    # Strip provider prefix from model if it matches (e.g. "openrouter:qwen/..." → "qwen/...")
+    if model and ":" in model:
+        prefix, _, rest = model.partition(":")
+        if prefix.lower() == provider and rest:
+            model = rest
+
     # ── Auto: try all providers in priority order ────────────────────
     if provider == "auto":
         client, resolved = _resolve_auto(main_runtime=main_runtime)
