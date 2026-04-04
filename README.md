@@ -1,71 +1,48 @@
-<p align="center">
-  <img src="assets/banner.png" alt="Hermes Agent" width="100%">
-</p>
+# Megaplan Autoimprover
 
-# Hermes Agent ☤
+Fork of [Hermes Agent](https://github.com/NousResearch/hermes-agent) focused on automated SWE-bench evaluation using the [Megaplan](https://github.com/peteromallet/megaplan) planning harness.
 
-<p align="center">
-  <a href="https://hermes-agent.nousresearch.com/docs/"><img src="https://img.shields.io/badge/Docs-hermes--agent.nousresearch.com-FFD700?style=for-the-badge" alt="Documentation"></a>
-  <a href="https://discord.gg/NousResearch"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-  <a href="https://github.com/NousResearch/hermes-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
-  <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Nous%20Research-blueviolet?style=for-the-badge" alt="Built by Nous Research"></a>
-</p>
+Two open-weight models work together through Megaplan's structured phases (prep, plan, critique, gate, execute, review) to solve real GitHub issues from SWE-bench Verified. The goal: beat the best closed-source models on this benchmark.
 
-**The self-improving AI agent built by [Nous Research](https://nousresearch.com).** It's the only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
+**[Live dashboard](https://peteromallet.github.io/swe-bench-challenge/)** -- watch the experiment in real time.
 
-Use any model you want — [Nous Portal](https://portal.nousresearch.com), [OpenRouter](https://openrouter.ai) (200+ models), [NVIDIA NIM](https://build.nvidia.com) (Nemotron), [Xiaomi MiMo](https://platform.xiaomimimo.com), [z.ai/GLM](https://z.ai), [Kimi/Moonshot](https://platform.moonshot.ai), [MiniMax](https://www.minimax.io), [Hugging Face](https://huggingface.co), OpenAI, or your own endpoint. Switch with `hermes model` — no code changes, no lock-in.
+## How It Works
 
-<table>
-<tr><td><b>A real terminal interface</b></td><td>Full TUI with multiline editing, slash-command autocomplete, conversation history, interrupt-and-redirect, and streaming tool output.</td></tr>
-<tr><td><b>Lives where you do</b></td><td>Telegram, Discord, Slack, WhatsApp, Signal, and CLI — all from a single gateway process. Voice memo transcription, cross-platform conversation continuity.</td></tr>
-<tr><td><b>A closed learning loop</b></td><td>Agent-curated memory with periodic nudges. Autonomous skill creation after complex tasks. Skills self-improve during use. FTS5 session search with LLM summarization for cross-session recall. <a href="https://github.com/plastic-labs/honcho">Honcho</a> dialectic user modeling. Compatible with the <a href="https://agentskills.io">agentskills.io</a> open standard.</td></tr>
-<tr><td><b>Scheduled automations</b></td><td>Built-in cron scheduler with delivery to any platform. Daily reports, nightly backups, weekly audits — all in natural language, running unattended.</td></tr>
-<tr><td><b>Delegates and parallelizes</b></td><td>Spawn isolated subagents for parallel workstreams. Write Python scripts that call tools via RPC, collapsing multi-step pipelines into zero-context-cost turns.</td></tr>
-<tr><td><b>Runs anywhere, not just your laptop</b></td><td>Six terminal backends — local, Docker, SSH, Daytona, Singularity, and Modal. Daytona and Modal offer serverless persistence — your agent's environment hibernates when idle and wakes on demand, costing nearly nothing between sessions. Run it on a $5 VPS or a GPU cluster.</td></tr>
-<tr><td><b>Research-ready</b></td><td>Batch trajectory generation, Atropos RL environments, trajectory compression for training the next generation of tool-calling models.</td></tr>
-</table>
-
----
-
-## Quick Install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+```
+prep → plan → critique → gate → [revise → critique → gate]* → finalize → execute → review
 ```
 
-Works on Linux, macOS, WSL2, and Android via Termux. The installer handles the platform-specific setup for you.
+Each phase can use a different model and provider. The critique phase runs parallel sub-agents (one per check). The gate enforces structured flag resolution before proceeding. After execution, an independent review checks the changes.
 
-> **Android / Termux:** The tested manual path is documented in the [Termux guide](https://hermes-agent.nousresearch.com/docs/getting-started/termux). On Termux, Hermes installs a curated `.[termux]` extra because the full `.[all]` extra currently pulls Android-incompatible voice dependencies.
->
-> **Windows:** Native Windows is not supported. Please install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) and run the command above.
+Scoring happens via Modal (remote Docker containers) against the official SWE-bench harness.
 
-After installation:
+## Quick Start
 
 ```bash
-source ~/.bashrc    # reload shell (or: source ~/.zshrc)
-hermes              # start chatting!
+# Prerequisites: megaplan CLI on PATH, Modal account configured, API keys set up
+pip install -e .
+
+# Run an iteration (3 parallel workers):
+python -m auto_improve.loop --workers 3
+
+# Monitor progress:
+python -m auto_improve.dashboard
+
+# Compare scores across iterations:
+python -m auto_improve.check_scores
 ```
 
----
+See [`auto_improve/README.md`](auto_improve/README.md) for full details on configuration, CLI commands, the improvement process, architecture, and failure analysis.
 
-## Getting Started
+## Configuration
 
-```bash
-hermes              # Interactive CLI — start a conversation
-hermes model        # Choose your LLM provider and model
-hermes tools        # Configure which tools are enabled
-hermes config set   # Set individual config values
-hermes gateway      # Start the messaging gateway (Telegram, Discord, etc.)
-hermes setup        # Run the full setup wizard (configures everything at once)
-hermes claw migrate # Migrate from OpenClaw (if coming from OpenClaw)
-hermes update       # Update to the latest version
-hermes doctor       # Diagnose any issues
-```
+Model selection and robustness levels are controlled via `auto_improve/base_config.json`. Each pipeline phase can use a different model with provider prefixes (`zhipu:`, `minimax:`, `google:`, or OpenRouter by default).
 
-📖 **[Full documentation →](https://hermes-agent.nousresearch.com/docs/)**
+Three robustness levels -- `light`, `standard`, `heavy` -- control how many critique checks run and whether the gate loop iterates.
 
-## CLI vs Messaging Quick Reference
+## Links
 
+<<<<<<< HEAD
 Hermes has two entry points: start the terminal UI with `hermes`, or run the gateway and talk to it from Telegram, Discord, Slack, WhatsApp, Signal, or Email. Once you're in a conversation, many slash commands are shared across both interfaces.
 
 | Action | CLI | Messaging platforms |
@@ -172,9 +149,13 @@ scripts/run_tests.sh
 - 🔌 [HermesClaw](https://github.com/AaronWong1999/hermesclaw) — Community WeChat bridge: Run Hermes Agent and OpenClaw on the same WeChat account.
 
 ---
+=======
+- [Live dashboard](https://peteromallet.github.io/swe-bench-challenge/) -- score progression, per-repo breakdown, task details
+- [Megaplan](https://github.com/peteromallet/megaplan) -- the planning harness
+- [Original Hermes Agent](https://github.com/NousResearch/hermes-agent) -- the upstream project
+- [Detailed docs](auto_improve/README.md) -- full CLI reference, architecture, failure catalog
+>>>>>>> 3d75b156b (docs: replace README with Megaplan Autoimprover overview)
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
-
-Built by [Nous Research](https://nousresearch.com).
+MIT -- see [LICENSE](LICENSE).
