@@ -70,3 +70,21 @@ mini-swe-agent/
 result
 website/static/api/skills-index.json
 models-dev-upstream/
+
+auto_improve/api_keys.json
+
+# Temp/scoring artifacts
+.DS_Store
+.claude/
+.megaplan/
+$tmpdir/
+results/
+evals/workspaces-*/
+evals/_repo_cache/
+evals/benchmark/
+auto_improve/*.bak
+auto_improve/*.glm
+auto_improve/*.glm-*
+auto_improve/*.qwen
+*.hermes-*.json
+MEGALOOP.md
